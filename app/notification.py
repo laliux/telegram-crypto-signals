@@ -172,6 +172,10 @@ class Notifier():
                 self.gmail_client.notify(message)
 
 
+    def stop_telegram_bot(self):
+        if self.telegram_configured:
+            self.telegram_client.stop_bot()
+            
     def notify_telegram(self, new_analysis):
         """Send a notification via the telegram notifier
 

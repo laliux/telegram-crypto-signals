@@ -29,6 +29,11 @@ def main():
     exchange_interface = ExchangeInterface(config.exchanges)
     notifier = Notifier(config.notifiers)
 
+    markets = settings['market_pairs']
+    notifier.telegram_client.register_markets(markets)
+
+    logger.info(str(markets))
+
     behaviour = Behaviour(
         config,
         exchange_interface,
@@ -36,7 +41,7 @@ def main():
     )
 
     while True:
-        behaviour.run(settings['market_pairs'], settings['output_mode'])
+        behaviour.run(markets, settings['output_mode'])
         logger.info("Sleeping for %s seconds", settings['update_interval'])
         time.sleep(settings['update_interval'])
 
