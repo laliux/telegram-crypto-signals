@@ -380,23 +380,24 @@ class Notifier():
         return new_message
 
     def _indicator_messages(self, new_analysis, template):
-        """Creates a message from a user defined template
+        """Creates a message list from a user defined template
 
         Args:
             new_analysis (dict): A dictionary of data related to the analysis to send a message about.
             template (str): A Jinja formatted message template.
 
         Returns:
-            str: The templated messages for the notifier.
+            list: A list with the templated messages for the notifier.
         """
 
         if not self.last_analysis:
             self.last_analysis = new_analysis
 
         message_template = Template(template)
-        new_message = str()
+
         new_messages = dict()
         ohlcv_values = dict()
+
         for exchange in new_analysis:
             for market in new_analysis[exchange]:
 
@@ -404,7 +405,7 @@ class Notifier():
                 new_messages[market_key] = dict()
                 ohlcv_values[market_key] = dict()
 
-
+                #Getting price values for each market pair and candle period
                 for indicator_type in new_analysis[exchange][market]:
                     if indicator_type == 'informants':
                         for index, analysis in enumerate(new_analysis[exchange][market]['informants']['ohlcv']):
@@ -412,9 +413,6 @@ class Notifier():
                             for signal in analysis['config']['signal']:
                                 values[signal] = analysis['result'].iloc[-1][signal]
                                 ohlcv_values[market_key][analysis['config']['candle_period']] = values
-
-                #self.logger.info('#### informatesssss');
-                #self.logger.info(str(ohlcv_values[market_key]));
 
                 for indicator_type in new_analysis[exchange][market]:
                     if indicator_type == 'informants':
@@ -472,8 +470,6 @@ class Notifier():
 
                                 should_alert = True
 
-                                #self.logger.info('should alert market %s 1: %s', market, should_alert)
-
                                 if analysis['config']['alert_frequency'] == 'once':
                                     if last_status == status:
                                         should_alert = False
@@ -482,17 +478,21 @@ class Notifier():
                                     should_alert = False
 
                                 if should_alert:
+                                    prices = ''
+                                    candle_period = analysis['config']['candle_period']
+
+                                    if candle_period in ohlcv_values[market_key]: 
+                                        prices = str(ohlcv_values[market_key][candle_period])
+
                                     base_currency, quote_currency = market.split('/')
 
                                     new_message = message_template.render(
                                         values=values, exchange=exchange, market=market, base_currency=base_currency,
                                         quote_currency=quote_currency, indicator=indicator, indicator_number=index,
-                                        analysis=analysis, status=status, last_status=last_status)
+                                        analysis=analysis, status=status, last_status=last_status, prices=prices)
 
-
-                                    new_messages[market_key][analysis['config']['candle_period']] = new_message  + ', HLC' + str(ohlcv_values[market_key][analysis['config']['candle_period']])
+                                    new_messages[market_key][candle_period] = new_message 
 
         # Merge changes from new analysis into last analysis
         self.last_analysis = {**self.last_analysis, **new_analysis}
         return new_messages
-
