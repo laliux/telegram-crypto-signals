@@ -174,7 +174,7 @@ def error(bot, update, error):
 
 def main():
     """Run bot."""
-    updater = Updater("662318103:AAGzeFBVp6KK_jCQ9DsQlWVSTbXk6dYVH9k")
+    updater = Updater(config.notifiers['telegram']['required']['token'])
 
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
