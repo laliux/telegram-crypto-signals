@@ -37,7 +37,16 @@ logger = structlog.get_logger()
 
 # Configure and run configured behaviour.
 exchange_interface = ExchangeInterface(config.exchanges)
-notifier = Notifier(config.notifiers)
+
+if settings['market_pairs']:
+    market_pairs = settings['market_pairs']
+    logger.info("Found configured markets: %s", market_pairs)
+    market_data = exchange_interface.get_exchange_markets(markets=market_pairs)
+else:
+    logger.info("No configured markets, using all available on exchange.")
+    market_data = exchange_interface.get_exchange_markets()
+
+notifier = Notifier(config.notifiers, market_data)
 
 market_pairs = settings['market_pairs'].copy()
 behaviour = Behaviour(config, exchange_interface, notifier)

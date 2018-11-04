@@ -1,8 +1,8 @@
 """Handles sending notifications via the configured notifiers
 """
 
-import os.path
 import json
+import os
 import structlog
 
 from telegram.error import TimedOut as TelegramTimedOut
@@ -20,7 +20,7 @@ class Notifier():
     """Handles sending notifications via the configured notifiers
     """
 
-    def __init__(self, notifier_config):
+    def __init__(self, notifier_config, market_data):
         """Initializes Notifier class
 
         Args:
@@ -29,6 +29,7 @@ class Notifier():
 
         self.logger = structlog.get_logger()
         self.notifier_config = notifier_config
+        self.market_data = market_data
         self.last_analysis = dict()
 
         enabled_notifiers = list()
@@ -173,10 +174,6 @@ class Notifier():
                 self.gmail_client.notify(message)
 
 
-    def stop_telegram_bot(self):
-        if self.telegram_configured:
-            self.telegram_client.stop_bot()
-            
     def notify_telegram(self, new_analysis):
         """Send notifications via the telegram notifier
 
@@ -219,7 +216,6 @@ class Notifier():
         except (TelegramTimedOut) as e:
             self.logger.info('Error TimeOut!')
             self.logger.info(e)
-
 
     def notify_webhook(self, new_analysis):
         """Send a notification via the webhook notifier
@@ -309,7 +305,7 @@ class Notifier():
 
                                     values[signal] = analysis['result'].iloc[-1][signal]
                                     if isinstance(values[signal], float):
-                                        values[signal] = format(values[signal], '.2f')
+                                        values[signal] = format(values[signal], '.8f')
                             elif indicator_type == 'crossovers':
                                 latest_result = analysis['result'].iloc[-1]
 
@@ -325,11 +321,11 @@ class Notifier():
 
                                 values[key_signal] = analysis['result'].iloc[-1][key_signal]
                                 if isinstance(values[key_signal], float):
-                                        values[key_signal] = format(values[key_signal], '.2f')
+                                        values[key_signal] = format(values[key_signal], '.8f')
 
                                 values[crossed_signal] = analysis['result'].iloc[-1][crossed_signal]
                                 if isinstance(values[crossed_signal], float):
-                                        values[crossed_signal] = format(values[crossed_signal], '.2f')
+                                        values[crossed_signal] = format(values[crossed_signal], '.8f')
 
                             status = 'neutral'
                             if latest_result['is_hot']:

@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+#Crypto Alerts config file
+app/config.yml
+
 # C extensions
 *.so
 
