@@ -94,6 +94,8 @@ class Notifier():
 
         self.logger.info('enabled notifers: %s', enabled_notifiers)
 
+    def update_market_data(self, market_data):
+        self.market_data = market_data
 
     def notify_all(self, new_analysis):
         """Trigger a notification for all notification options.
