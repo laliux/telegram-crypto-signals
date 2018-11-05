@@ -29,8 +29,7 @@ class TelegramNotifier(NotifierUtils):
         #self.updater = Updater(token)
         self.chat_id = chat_id
         self.parse_mode = parse_mode
-
-        #self.setup_bot()
+        self.updater = None
 
     @retry(
         retry=retry_if_exception_type(telegram.error.TimedOut),

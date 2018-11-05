@@ -5,6 +5,7 @@ __pycache__/
 
 #Crypto Alerts config file
 app/config.yml
+app/charts
 
 # C extensions
 *.so
