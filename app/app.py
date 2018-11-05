@@ -48,8 +48,13 @@ else:
 
 notifier = Notifier(config.notifiers, market_data)
 
-market_pairs = settings['market_pairs'].copy()
-behaviour = Behaviour(config, exchange_interface, notifier)
+behaviour = Behaviour(
+        config,
+        exchange_interface,
+        notifier
+    )
+
+behaviour.run(market_data, settings['output_mode'])
 
 
 # Define a few command handlers. These usually take the two arguments bot and
