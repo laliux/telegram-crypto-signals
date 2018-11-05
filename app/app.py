@@ -48,13 +48,6 @@ else:
 
 notifier = Notifier(config.notifiers, market_data)
 
-behaviour = Behaviour(
-        config,
-        exchange_interface,
-        notifier
-    )
-
-
 # Define a few command handlers. These usually take the two arguments bot and
 # update. Error handlers also receive the raised TelegramError object in error.
 def start(bot, update):
@@ -72,12 +65,23 @@ def markets(bot, update):
     update.message.reply_text(str(market_pairs))
 
 def alarm(bot, job):
+    global config, exchange_interface, notifier, settings, market_data
+
+    notifier.update_market_data(market_data)
+
+    behaviour = Behaviour(
+            config,
+            exchange_interface,
+            notifier
+        )
+
     behaviour.run(market_data, settings['output_mode'])
 
 def market(bot, update, args):
     """Add/Remove a marker pair."""
+    global market_data
 
-    logger.info('Entering to market() with args %s', str(args))
+    change = False
 
     try:
         # args[0] is the operation to do
@@ -87,17 +91,22 @@ def market(bot, update, args):
 
         if operation == 'add':
             try:
-                market_pairs.append(market_pair)
+                settings['market_pairs'].append(market_pair)
                 update.message.reply_text('%s successfully added!' % market_pair)
+                change = True
             except(ValueError):
                 update.message.reply_text('Problems adding %s!' % market_pair)
 
         if operation == 'remove':
             try:
-                market_pairs.remove(market_pair)
+                settings['market_pairs'].remove(market_pair)
                 update.message.reply_text('%s successfully removed!' % market_pair)
+                change = True
             except(ValueError):
                 update.message.reply_text('%s is not in market pairs list.' % market_pair)
+
+        if change == True:
+            market_data = exchange_interface.get_exchange_markets(markets=settings['market_pairs'])
 
     except (IndexError, ValueError) as err:
         logger.error('Error on market() command... %s', err)
