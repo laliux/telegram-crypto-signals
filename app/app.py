@@ -54,8 +54,6 @@ behaviour = Behaviour(
         notifier
     )
 
-behaviour.run(market_data, settings['output_mode'])
-
 
 # Define a few command handlers. These usually take the two arguments bot and
 # update. Error handlers also receive the raised TelegramError object in error.
@@ -74,12 +72,7 @@ def markets(bot, update):
     update.message.reply_text(str(market_pairs))
 
 def alarm(bot, job):
-    behaviour.run(market_pairs, settings['output_mode'])
-    
-    #logger.info("Sleeping for %s seconds", settings['update_interval'])
-
-    """Send the alarm message."""
-    #bot.send_message(job.context, text='Beep!')
+    behaviour.run(market_data, settings['output_mode'])
 
 def market(bot, update, args):
     """Add/Remove a marker pair."""
