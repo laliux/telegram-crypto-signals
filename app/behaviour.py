@@ -55,11 +55,12 @@ class Behaviour(IndicatorUtils):
         self.output = output_interface.dispatcher
 
 
-    def run(self, market_data, output_mode):
+    def run(self, market_data, fibonacci, output_mode):
         """The analyzer entrypoint
 
         Args:
             market_data (dict): Dict of exchanges and symbol pairs to operate on.
+            fibonacci (dict): Dict with Fibonacci levels
             output_mode (str): Which console output mode to use.
         """
 
@@ -69,7 +70,7 @@ class Behaviour(IndicatorUtils):
 
         self.all_historical_data = self.get_all_historical_data(market_data)
 
-        self._create_charts(market_data)
+        self._create_charts(market_data, fibonacci)
 
         new_result = self._test_strategies(market_data, output_mode)
 
@@ -385,7 +386,7 @@ class Behaviour(IndicatorUtils):
             results = str()
         return results
 
-    def _create_charts(self, market_data):
+    def _create_charts(self, market_data, fibonacci):
         """Create charts for each market_pair/candle_period
 
         Args:
@@ -400,13 +401,15 @@ class Behaviour(IndicatorUtils):
             for market_pair in market_data[exchange]:
                 historical_data = self.all_historical_data[exchange][market_pair]
 
+                fibonacci_levels = fibonacci[exchange][market_pair]
+
                 for candle_period in historical_data:
                     candles_data = historical_data[candle_period]
                     self.logger.info('Creating chart for %s %s', market_pair, candle_period)
-                    self._create_chart(exchange, market_pair, candle_period, candles_data, charts_dir)
+                    self._create_chart(exchange, market_pair, candle_period, candles_data, fibonacci_levels, charts_dir)
 
 
-    def _create_chart(self, exchange, market_pair, candle_period, candles_data, charts_dir):
+    def _create_chart(self, exchange, market_pair, candle_period, candles_data, fibonacci_levels, charts_dir):
 
         df = self.convert_to_dataframe(candles_data)
 
@@ -428,6 +431,11 @@ class Behaviour(IndicatorUtils):
 
         #Plot Candles chart
         self.plot_candlestick(ax1, df, candle_period)
+
+        if fibonacci_levels['0.00'] > 0 and fibonacci_levels['0.00'] > fibonacci_levels['100.00']:
+            ax1.axhspan(fibonacci_levels['38.20'], fibonacci_levels['23.60'], alpha=0.8, color='lightsalmon')
+            ax1.axhspan(fibonacci_levels['50.00'], fibonacci_levels['38.20'], alpha=0.8, color='palegreen')
+            ax1.axhspan(fibonacci_levels['61.80'], fibonacci_levels['50.00'], alpha=0.8, color='yellowgreen')
 
         #Plot RSI (14)
         self.plot_rsi(ax2, df)
