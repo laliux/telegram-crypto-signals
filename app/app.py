@@ -48,6 +48,30 @@ else:
 
 notifier = Notifier(config.notifiers, market_data)
 
+#Dict to save user defined fibonacci levels
+fibonacci = None
+
+
+def setup_fibonacci(market_data):
+    fibonacci = dict()
+
+    for exchange in market_data:
+        fibonacci[exchange] = dict()
+
+        for market_pair in market_data[exchange]:
+            fibonacci[exchange][market_pair] = dict()
+
+            fibonacci[exchange][market_pair]['0.00'] = 0
+            fibonacci[exchange][market_pair]['23.60'] = 0
+            fibonacci[exchange][market_pair]['38.20'] = 0
+            fibonacci[exchange][market_pair]['50.00'] = 0
+            fibonacci[exchange][market_pair]['61.80'] = 0
+            fibonacci[exchange][market_pair]['78.60'] = 0
+            fibonacci[exchange][market_pair]['100.00'] = 0
+
+    return fibonacci
+
+
 # Define a few command handlers. These usually take the two arguments bot and
 # update. Error handlers also receive the raised TelegramError object in error.
 def start(bot, update):
@@ -65,7 +89,7 @@ def markets(bot, update):
     update.message.reply_text(str(market_pairs))
 
 def alarm(bot, job):
-    global config, exchange_interface, notifier, settings, market_data
+    global config, exchange_interface, notifier, settings, market_data, fibonacci
 
     notifier.update_market_data(market_data)
 
@@ -75,7 +99,68 @@ def alarm(bot, job):
             notifier
         )
 
-    behaviour.run(market_data, settings['output_mode'])
+    behaviour.run(market_data, fibonacci, settings['output_mode'])
+
+def fibo(bot, update, args):
+    """Set Fibonnaci levels for a specific market pair."""
+    global fibonacci
+
+    try:
+        # args[0] is the operation to do
+        min_max = args[0].lower()
+        # args[1] should contain the name of market
+        market_pair = ("%s/USDT" % args[1].strip()).upper()
+        # args[2] is the value to set
+        value = float(args[2])
+
+        try:
+            if market_pair in fibonacci['binance']: 
+                level = fibonacci['binance'][market_pair]
+
+                if min_max == 'min':
+                    level['100.00'] = value
+                else:
+                    level['0.00'] = value
+
+                if level['0.00'] > 0 and level['0.00'] > level['100.00']:
+                    price_max = level['0.00']
+                    price_min = level['100.00'] 
+                    diff = price_max - price_min
+
+                    level['23.60'] = price_max - 0.236 * diff
+                    level['38.20'] = price_max - 0.382 * diff
+                    level['50.00'] = price_max - 0.50 * diff
+                    level['61.80'] = price_max - 0.618 * diff
+                    level['78.60'] = price_max - 0.786 * diff
+
+
+                update.message.reply_text('Successfully set %s as %s value for %s!' % (args[2], args[1], market_pair))
+            
+        except(ValueError):
+            update.message.reply_text('Problems setting %s %s!' % (args[2], market_pair))
+
+    except (IndexError, ValueError) as err:
+        logger.error('Error on fibo() command... %s', err)
+        update.message.reply_text('Usage: /fibo <min|max> <market_pair> value')
+
+def chart(bot, update, args):
+    """Send a chart image for a specific market pair and candle period."""
+    global market_data, notifier
+
+    try:
+        # args[0] should contain the name of market
+        market_pair = ("%s/USDT" % args[0].strip()).upper()
+
+        if market_pair in market_data['binance']: 
+            candle_period = args[1]
+
+            notifier.notify_telegram_chart('binance', market_pair, candle_period)
+        else:
+            update.message.reply_text('Market pair %s is not configured!' % market_pair)
+
+    except (IndexError, ValueError) as err:
+        logger.error('Error on chart() command... %s', err)
+        update.message.reply_text('Usage: /chart <market_pair> <candle_period>')
 
 def market(bot, update, args):
     """Add/Remove a marker pair."""
@@ -189,6 +274,10 @@ def error(bot, update, error):
 
 
 def main():
+    global fibonacci, market_data
+
+    fibonacci = setup_fibonacci(market_data)
+
     """Run bot."""
     updater = Updater(config.notifiers['telegram']['required']['token'])
 
@@ -207,6 +296,8 @@ def main():
     dp.add_handler(CommandHandler("indicators", indicators))
     dp.add_handler(CommandHandler("indicator", indicator, pass_args=True))
     dp.add_handler(CommandHandler("unset", unset, pass_chat_data=True))
+    dp.add_handler(CommandHandler("fibo", fibo, pass_args=True))
+    dp.add_handler(CommandHandler("chart", chart, pass_args=True))
 
     # log all errors
     dp.add_error_handler(error)
