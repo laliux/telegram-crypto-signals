@@ -414,7 +414,7 @@ class Behaviour(IndicatorUtils):
         df = self.convert_to_dataframe(candles_data)
 
         plt.rc('axes', grid=True)
-        plt.rc('grid', color='0.75', linestyle='-', linewidth=0.5)
+        plt.rc('grid', color='#b0b0b0', linestyle='-', linewidth=0.2, alpha = 0.6)
 
         left, width = 0.1, 0.8
         rect1 = [left, 0.6, width, 0.3]
@@ -429,13 +429,17 @@ class Behaviour(IndicatorUtils):
         ax2 = fig.add_axes(rect2, facecolor=axescolor, sharex=ax1)
         ax3 = fig.add_axes(rect3, facecolor=axescolor, sharex=ax1)
 
+        if fibonacci_levels['0.00'] > 0 and fibonacci_levels['0.00'] > fibonacci_levels['100.00']:
+            ax1.axhline(fibonacci_levels['0.00'], color='steelblue', linestyle='-', alpha=0.3)
+            ax1.axhspan(fibonacci_levels['23.60'], fibonacci_levels['0.00'], alpha=0.2, color='steelblue')
+            ax1.axhspan(fibonacci_levels['38.20'], fibonacci_levels['23.60'], alpha=0.3, color='steelblue')
+            ax1.axhspan(fibonacci_levels['50.00'], fibonacci_levels['38.20'], alpha=0.2, color='steelblue')
+            ax1.axhspan(fibonacci_levels['61.80'], fibonacci_levels['50.00'], alpha=0.3, color='steelblue')
+            ax1.axhspan(fibonacci_levels['78.60'], fibonacci_levels['61.80'], alpha=0.2, color='steelblue')
+            ax1.axhspan(fibonacci_levels['100.00'], fibonacci_levels['78.60'], alpha=0.3, color='steelblue')
+        
         #Plot Candles chart
         self.plot_candlestick(ax1, df, candle_period)
-
-        if fibonacci_levels['0.00'] > 0 and fibonacci_levels['0.00'] > fibonacci_levels['100.00']:
-            ax1.axhspan(fibonacci_levels['38.20'], fibonacci_levels['23.60'], alpha=0.8, color='lightsalmon')
-            ax1.axhspan(fibonacci_levels['50.00'], fibonacci_levels['38.20'], alpha=0.8, color='palegreen')
-            ax1.axhspan(fibonacci_levels['61.80'], fibonacci_levels['50.00'], alpha=0.8, color='yellowgreen')
 
         #Plot RSI (14)
         self.plot_rsi(ax2, df)
@@ -522,13 +526,11 @@ class Behaviour(IndicatorUtils):
                 lower = close
                 height = open - close
 
-            #from matplotlib.lines import TICKLEFT, TICKRIGHT, Line2D
-            #from matplotlib.patches import Rectangle
             vline = Line2D(
                 xdata=(t, t), ydata=(low, high),
                 color=color,
                 linewidth=0.5,
-                antialiased=True,
+                antialiased=False,
             )
 
             rect = Rectangle(
@@ -536,39 +538,42 @@ class Behaviour(IndicatorUtils):
                 width=width,
                 height=height,
                 facecolor=color,
-                edgecolor=color,
+                edgecolor=None,
+                antialiased=False,
+                alpha=1.0
             )
-            rect.set_alpha(alpha)
 
             lines.append(vline)
             patches.append(rect)
             ax.add_line(vline)
             ax.add_patch(rect)
+
         ax.autoscale_view()
 
         return lines, patches
 
     def plot_candlestick(self, ax, df, candle_period):
         textsize = 11
-        stick_width = 0.02
 
-        if candle_period == '4h':
-            stick_width = 0.04
+        _time = mdates.date2num(df.index.to_pydatetime())
+        min_x = np.nanmin(_time)
+        max_x = np.nanmax(_time)
+
+        stick_width = ((max_x - min_x) / _time.size ) 
 
         prices = df["close"]
 
         ax.set_ymargin(0.2)
         ax.ticklabel_format(axis='y', style='plain')
 
-        self.candlestick_ohlc(ax, zip(mdates.date2num(df.index.to_pydatetime()),
-                            df['open'], df['high'], df['low'], df['close']),
+        self.candlestick_ohlc(ax, zip(_time, df['open'], df['high'], df['low'], df['close']),
                     width=stick_width, colorup='olivedrab', colordown='crimson')
                     
         ma25 = self.moving_average(prices, 25, type='simple')
         ma7 = self.moving_average(prices, 7, type='simple')
 
-        ax.plot(df.index, ma25, color='indigo', lw=0.5, label='MA (25)')
-        ax.plot(df.index, ma7, color='orange', lw=0.5, label='MA (7)')
+        ax.plot(df.index, ma25, color='indigo', lw=0.6, label='MA (25)')
+        ax.plot(df.index, ma7, color='orange', lw=0.6, label='MA (7)')
     
         ax.text(0.04, 0.94, 'MA (7, close, 0)', color='orange', transform=ax.transAxes, fontsize=textsize, va='top')
         ax.text(0.24, 0.94, 'MA (25, close, 0)', color='indigo', transform=ax.transAxes,  fontsize=textsize, va='top')
@@ -613,17 +618,15 @@ class Behaviour(IndicatorUtils):
         max_y = max_y * 1.2
 
         #Define candle bar width
-        bar_width = 1.2
-  
-        if(candle_period == '4h'):
-            bar_width = 0.18
+        _time = mdates.date2num(df.index.to_pydatetime())
+        min_x = np.nanmin(_time)
+        max_x = np.nanmax(_time)
 
-        if(candle_period == '1h' or candle_period == '30m' or candle_period == '15m'):
-            bar_width = 0.04
+        bar_width = ((max_x - min_x) / _time.size ) * 0.8            
 
-        ax.bar(x=df.index, bottom=[0 for _ in macd_h.index], height=macd_h, width=bar_width, color="red", alpha = 0.4)
-        ax.plot(df.index, df.macd, color='blue', lw=0.6)
-        ax.plot(df.index, df.macds, color='red', lw=0.6)
+        ax.bar(x=_time, bottom=[0 for _ in macd_h.index], height=macd_h, width=bar_width, color="red", alpha = 0.4)
+        ax.plot(_time, df.macd, color='blue', lw=0.6)
+        ax.plot(_time, df.macds, color='red', lw=0.6)
         ax.set_ylim((min_y, max_y))
     
         ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=5, prune='upper'))
