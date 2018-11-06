@@ -219,6 +219,24 @@ class Notifier():
             self.logger.info('Error TimeOut!')
             self.logger.info(e)
 
+    def notify_telegram_chart(self, exchange, market_pair, candle_period ):
+        try:
+            market = market_pair.replace('/', '_').lower()
+            chart_file = './charts/{}_{}_{}.png'.format(exchange, market, candle_period)
+
+            if os.path.exists(chart_file):
+                try:
+                    message = '{} {} on {}'.format(market_pair, candle_period, exchange.title())
+                    self.telegram_client.send_chart(open(chart_file, 'rb'), message)
+                except (IOError, SyntaxError) :
+                    self.notify_telegram_message('Error sending chart image.')
+            else:
+                self.logger.info('Chart file %s doesnt exist.', chart_file)            
+
+        except (TelegramTimedOut) as e:
+            self.logger.info('Error TimeOut!')
+            self.logger.info(e)            
+
     def notify_webhook(self, new_analysis):
         """Send a notification via the webhook notifier
 
