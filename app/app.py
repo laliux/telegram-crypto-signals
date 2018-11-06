@@ -53,23 +53,29 @@ fibonacci = None
 
 
 def setup_fibonacci(market_data):
+    global fibonacci
+
     fibonacci = dict()
 
     for exchange in market_data:
         fibonacci[exchange] = dict()
 
         for market_pair in market_data[exchange]:
-            fibonacci[exchange][market_pair] = dict()
+            add_to_fibonnaci(exchange, market_pair)
 
-            fibonacci[exchange][market_pair]['0.00'] = 0
-            fibonacci[exchange][market_pair]['23.60'] = 0
-            fibonacci[exchange][market_pair]['38.20'] = 0
-            fibonacci[exchange][market_pair]['50.00'] = 0
-            fibonacci[exchange][market_pair]['61.80'] = 0
-            fibonacci[exchange][market_pair]['78.60'] = 0
-            fibonacci[exchange][market_pair]['100.00'] = 0
 
-    return fibonacci
+def add_to_fibonnaci(exchange, market_pair):
+    global fibonacci
+
+    fibonacci[exchange][market_pair] = dict()
+
+    fibonacci[exchange][market_pair]['0.00'] = 0
+    fibonacci[exchange][market_pair]['23.60'] = 0
+    fibonacci[exchange][market_pair]['38.20'] = 0
+    fibonacci[exchange][market_pair]['50.00'] = 0
+    fibonacci[exchange][market_pair]['61.80'] = 0
+    fibonacci[exchange][market_pair]['78.60'] = 0
+    fibonacci[exchange][market_pair]['100.00'] = 0
 
 
 # Define a few command handlers. These usually take the two arguments bot and
@@ -177,6 +183,11 @@ def market(bot, update, args):
         if operation == 'add':
             try:
                 settings['market_pairs'].append(market_pair)
+                
+                #TODO: call get_default_exchange()
+                exchange = 'binance'
+                add_to_fibonnaci(exchange, market_pair)
+
                 update.message.reply_text('%s successfully added!' % market_pair)
                 change = True
             except(ValueError):
@@ -274,9 +285,9 @@ def error(bot, update, error):
 
 
 def main():
-    global fibonacci, market_data
+    global market_data
 
-    fibonacci = setup_fibonacci(market_data)
+    setup_fibonacci(market_data)
 
     """Run bot."""
     updater = Updater(config.notifiers['telegram']['required']['token'])
