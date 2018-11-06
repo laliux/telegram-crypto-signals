@@ -552,6 +552,9 @@ class Behaviour(IndicatorUtils):
         textsize = 11
         stick_width = 0.02
 
+        if candle_period == '4h':
+            stick_width = 0.04
+
         prices = df["close"]
 
         ax.set_ymargin(0.2)
