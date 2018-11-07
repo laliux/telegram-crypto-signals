@@ -18,9 +18,9 @@ The commands listed below are intended to be run in a terminal.
 
 1. Build your own image, for example `docker build -t laliux/telegram-crypto-signals:latest .`
 
-1. For testing and debugging run `docker run --rm -ti -v  $PWD/app:/app laliux/telegram-crypto-signals:latest`.
+1. For testing and debugging run `docker run --rm -ti -v  $PWD/app:/app laliux/telegram-crypto-signals:latest`
 
-1. For production run in daemon mode `docker run --rm -di -v  $PWD/app:/app laliux/telegram-crypto-signals:latest`.
+1. For production run in daemon mode `docker run --rm -di -v  $PWD/app:/app laliux/telegram-crypto-signals:latest`
 
 ### Configuring config.yml
 
@@ -28,7 +28,7 @@ For a list of all possible options for config.yml and some example configuration
 
 # FAQ and Common Questions
 
-Refer to original [Crypto Signals] https://github.com/CryptoSignal/crypto-signal
+Refer to original [Crypto Signals]https://github.com/CryptoSignal/crypto-signal
 
 # Liability
 I am not your financial adviser, nor is this tool. Use this program as an educational tool, and nothing more. None of the contributors to this project are liable for any losses you may incur. Be wise and always do your own research.
