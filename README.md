@@ -25,16 +25,16 @@ The commands listed below are intended to be run in a terminal.
 ## Interacting with Telegram Bot
 From your chat bot you can use the following commands. The most important is "/timeout" to set the update interval.
 
-To run analysis every 10 minutes.
-`/timeout 600`
+To run analysis every 10 minutes. <br />
+`/timeout 600` <br /><br />
 
-Basic help to know available commands
-`/help`
+Basic help to know available commands <br />
+`/help` <br /><br />
 
-Disable or re-enable any indicators initially registered in config.yml
-`/indicators`
-`/indicator rsi disable 15m`
-`/indicator rsi enable 15m`
+Disable or re-enable any indicators initially registered in config.yml <br />
+`/indicators` <br />
+`/indicator rsi disable 15m` <br />
+`/indicator rsi enable 15m` <br />
 
 ### Configuring config.yml
 
