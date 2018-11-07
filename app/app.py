@@ -197,42 +197,43 @@ def chart(bot, update, args):
 def market(bot, update, args):
     """Add/Remove a marker pair."""
     global market_data
-
-    change = False
+    
+    #TODO: call get_default_exchange()
+    exchange = 'binance'
 
     try:
         # args[0] is the operation to do
         operation = args[0]
         # args[1] should contain the name of market
-        market_pair = ("%s/USDT" % args[1].strip()).upper()
-
-        if operation == 'add':
-            try:
-                settings['market_pairs'].append(market_pair)
+        market_pair = ("%s/%s" % (args[1].strip(), args[2].strip())).upper()
+        
                 
-                #TODO: call get_default_exchange()
-                exchange = 'binance'
-                add_to_fibonnaci(exchange, market_pair)
+        if operation == 'add':
+            settings['market_pairs'].append(market_pair)
+            market_data = exchange_interface.get_exchange_markets(markets=settings['market_pairs'])
+            
+            if market_pair not in market_data[exchange]:
+                settings['market_pairs'].remove(market_pair)
+                update.message.reply_text('%s doesnt exist on %s!' % (market_pair, exchange))
+                return
+            
+            add_to_fibonnaci(exchange, market_pair)
 
-                update.message.reply_text('%s successfully added!' % market_pair)
-                change = True
-            except(ValueError):
-                update.message.reply_text('Problems adding %s!' % market_pair)
+            update.message.reply_text('%s successfully added!' % market_pair)
 
         if operation == 'remove':
-            try:
-                settings['market_pairs'].remove(market_pair)
-                update.message.reply_text('%s successfully removed!' % market_pair)
-                change = True
-            except(ValueError):
+            
+            if market_pair not in settings['market_pairs']:
                 update.message.reply_text('%s is not in market pairs list.' % market_pair)
-
-        if change == True:
+                
+            settings['market_pairs'].remove(market_pair)
             market_data = exchange_interface.get_exchange_markets(markets=settings['market_pairs'])
+            update.message.reply_text('%s successfully removed!' % market_pair)
 
     except (IndexError, ValueError) as err:
         logger.error('Error on market() command... %s', err)
-        update.message.reply_text('Usage: /market <add|remove> pair')
+        update.message.reply_text('Usage: /market <add|remove> symbol base_market')
+        update.message.reply_text('For example: /market add btc usdt')
 
 def indicators(bot, update):
     """ Display enabled indicators """
