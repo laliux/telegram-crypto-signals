@@ -80,18 +80,44 @@ def add_to_fibonnaci(exchange, market_pair):
 
 # Define a few command handlers. These usually take the two arguments bot and
 # update. Error handlers also receive the raised TelegramError object in error.
-def start(bot, update):
-    update.message.reply_text('Hi! Welcome to Crypto Alerts Bot')
+
+def start(bot, update, job_queue, chat_data):
+    global settings
+    
+    """Add job to the queue with due = settings['update_interval'] ."""
+    
+    chat_id = update.message.chat_id
+    
+    try:
+        update.message.reply_text('Hi! Welcome to Crypto Signals Bot')
+        
+        # args[0] should contain the time for the timer in seconds
+        due = int(settings['update_interval'])
+        if due < 0:
+            update.message.reply_text('Dont forget to set the update interval. Use the /timeout command !')
+            return
+
+        if 'job' not in chat_data:
+            # Add job to queue
+            job = job_queue.run_repeating(alarm, due, context=chat_id)
+            chat_data['job'] = job
+
+            update.message.reply_text('Default update interval from config file set to %d seconds!' % due)
+
+    except (IndexError, ValueError):
+        update.message.reply_text('Dont forget to set the update interval. Type /help for more info.')
 
 def help(bot, update):
-    update.message.reply_text('Hi! Use the following commands')
-    update.message.reply_text('/timeout to set the timeout')
-    update.message.reply_text('/unset reset the timeout value')
+    update.message.reply_text('Available commands:')
+    update.message.reply_text('/timeout to set the update interval')
+    update.message.reply_text('/unset to reset the timeout value - removes timer.')
     update.message.reply_text('/markets to get a list of market pairs')
     update.message.reply_text('/market to add or remove a market pair')
+    update.message.reply_text('/indicators to get a list of configured indicators')
+    update.message.reply_text('/indicator to disable/enable an indicator')
 
 def markets(bot, update):
-    update.message.reply_text('List of market pairs to analize.. ')
+    update.message.reply_text('List of market pairs to analyze ... ')
     update.message.reply_text(str(market_pairs))
 
 def alarm(bot, job):
@@ -224,8 +250,6 @@ def indicators(bot, update):
 
 def indicator(bot, update, args):
     """ Manage indicators """
-    logger.info('Entering to indicator() with args %s', str(args))
-
     if args is None or len(args) == 0 :
         update.message.reply_text('Usage: /indicator <indicator> <candle_period> <enable|disable>')
     else:
@@ -296,7 +320,9 @@ def main():
     dp = updater.dispatcher
 
     # on different commands - answer in Telegram
-    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("start", start, 
+                                  pass_job_queue=True, 
+                                  pass_chat_data=True ))
     dp.add_handler(CommandHandler("help", help))
     dp.add_handler(CommandHandler("timeout", set_timeout,
                                   pass_args=True,
