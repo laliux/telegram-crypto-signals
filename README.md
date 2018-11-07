@@ -7,7 +7,7 @@ It is based on [Crypto Signals] https://github.com/CryptoSignal/crypto-signal , 
 Main differences vs original Crypto Signals:
 - Focused 100% to interact with a Telegram Bot
 - Using your Telegram Bot you can change the initial configuration. You can add/remove market pairs, enable/disable indicators at a specific period, and you can set the timeout which the analysis are executed.
-- It create a candle bar charts with MAs, RSI and MACD. Those images are sending as part of the Telegram notification.
+- It creates candle bar charts with MAs, RSI and MACD. Those images are sending as part of the Telegram notification.
 
 ## Installing And Running
 The commands listed below are intended to be run in a terminal.
