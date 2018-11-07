@@ -2,7 +2,7 @@
 
 Telegram Crypto Signals is a command line tool that automates your crypto currency Technical Analysis (TA).
 
-It is a proyect based on [Crypto Signals] https://github.com/CryptoSignal/crypto-signal , so I recommend you to take a look in that proyect to known what is it.
+It is based on [Crypto Signals] https://github.com/CryptoSignal/crypto-signal , so I recommend you to take a look in that proyect to known what is it.
 
 Main differences vs original Crypto Signals:
 - Focused 100% to interact with a Telegram Bot
