@@ -22,6 +22,20 @@ The commands listed below are intended to be run in a terminal.
 
 1. For production run in daemon mode `docker run --rm -di -v  $PWD/app:/app laliux/telegram-crypto-signals:latest`
 
+## Interacting with Telegram Bot
+From your chat bot you can use the following commands. The most important is "/timeout" to set the update interval.
+
+To run analysis every 10 minutes.
+`/timeout 600`
+
+Basic help to know available commands
+`/help`
+
+Disable or re-enable any indicators initially registered in config.yml
+`/indicators`
+`/indicator rsi disable 15m`
+`/indicator rsi enable 15m`
+
 ### Configuring config.yml
 
 For a list of all possible options for config.yml and some example configurations look [here](docs/config.md)
