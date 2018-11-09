@@ -69,5 +69,5 @@ class TelegramNotifier(NotifierUtils):
 
         self.updater.bot.send_photo(chat_id=chat_id, photo=photo_url, caption=caption, timeout=40)
 
-    def setup_bot(self, updater):
+    def set_updater(self, updater):
         self.updater = updater       
