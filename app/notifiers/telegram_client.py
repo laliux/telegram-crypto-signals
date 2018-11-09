@@ -1,11 +1,8 @@
 """Notify a user via telegram
 """
 
-import json
-
 import structlog
 import telegram
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from notifiers.utils import NotifierUtils
@@ -24,9 +21,7 @@ class TelegramNotifier(NotifierUtils):
         """
 
         self.logger = structlog.get_logger()
-        #self.bot = telegram.Bot(token=token)
-        # Create the EventHandler and pass it your bot's token.
-        #self.updater = Updater(token)
+        self.token = token
         self.chat_id = chat_id
         self.parse_mode = parse_mode
         self.updater = None
