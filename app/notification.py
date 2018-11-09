@@ -20,7 +20,7 @@ class Notifier():
     """Handles sending notifications via the configured notifiers
     """
 
-    def __init__(self, notifier_config):
+    def __init__(self, notifier_config, market_data): #, user_id):
         """Initializes Notifier class
 
         Args:
@@ -29,7 +29,8 @@ class Notifier():
 
         self.logger = structlog.get_logger()
         self.notifier_config = notifier_config
-        self.market_data = dict()
+        self.market_data = market_data
+        #self.user_id = user_id
         self.last_analysis = dict()
 
         enabled_notifiers = list()
@@ -76,8 +77,6 @@ class Notifier():
                 chat_id=notifier_config['telegram']['required']['chat_id'],
                 parse_mode=notifier_config['telegram']['optional']['parse_mode']
             )
-            self.telegram_clients = dict()
-            self.telegram_clients[notifier_config['telegram']['required']['chat_id']] = self.telegram_client 
             
             enabled_notifiers.append('telegram')
 
@@ -97,17 +96,7 @@ class Notifier():
 
         self.logger.info('enabled notifers: %s', enabled_notifiers)
 
-    def register_telegram_client(self, chat_id, config):
-        self.telegram_clients[chat_id] = TelegramNotifier(
-                token=config['required']['token'],
-                chat_id=config['required']['chat_id'],
-                user_id=config['required']['user_id'],
-                parse_mode=config['optional']['parse_mode']
-            )
     
-    def update_market_data(self, user_id, market_data):
-        self.market_data[user_id] = market_data
-
     def notify_all(self, new_analysis):
         """Trigger a notification for all notification options.
 
