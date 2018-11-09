@@ -15,7 +15,7 @@ class TelegramNotifier(NotifierUtils):
     """Used to notify user of events via telegram.
     """
 
-    def __init__(self, token, chat_id, parse_mode):
+    def __init__(self, token, chat_id, user_id, parse_mode):
         """Initialize TelegramNotifier class
 
         Args:
@@ -29,6 +29,7 @@ class TelegramNotifier(NotifierUtils):
         #self.updater = Updater(token)
         self.chat_id = chat_id
         self.parse_mode = parse_mode
+        self.user_id = user_id
         self.updater = None
 
     @retry(
@@ -36,18 +37,21 @@ class TelegramNotifier(NotifierUtils):
         stop=stop_after_attempt(6),
         wait=wait_fixed(5)
     )
-    def notify(self, message):
+    def notify(self, message, chat_id = None):
         """Send the notification.
 
         Args:
             message (str): The message to send.
         """
 
+        if chat_id == None:
+            chat_id = self.chat_id
+            
         max_message_size = 4096
         message_chunks = self.chunk_message(message=message, max_message_size=max_message_size)
 
         for message_chunk in message_chunks:
-            self.updater.bot.send_message(chat_id=self.chat_id, text=message_chunk, parse_mode=self.parse_mode)
+            self.updater.bot.send_message(chat_id=chat_id, text=message_chunk, parse_mode=self.parse_mode)
 
 
     @retry(
@@ -55,18 +59,16 @@ class TelegramNotifier(NotifierUtils):
         stop=stop_after_attempt(6),
         wait=wait_fixed(5)
     )
-    def send_chart(self, photo_url, caption):
+    def send_chart(self, photo_url, caption, chat_id = None):
         """Send image chart
 
         Args:
             photo_url (str): The photo url to send.
         """
+        if chat_id == None:
+            chat_id = self.chat_id
 
-        self.updater.bot.send_photo(chat_id=self.chat_id, photo=photo_url, caption=caption, timeout=40)
-
-    def stop_bot(self):
-        if self.updater.running :
-            self.updater.stop()
+        self.updater.bot.send_photo(chat_id=chat_id, photo=photo_url, caption=caption, timeout=40)
 
     def setup_bot(self, updater):
         self.updater = updater       

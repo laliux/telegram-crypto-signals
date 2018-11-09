@@ -20,7 +20,7 @@ class Notifier():
     """Handles sending notifications via the configured notifiers
     """
 
-    def __init__(self, notifier_config, market_data):
+    def __init__(self, notifier_config):
         """Initializes Notifier class
 
         Args:
@@ -29,7 +29,7 @@ class Notifier():
 
         self.logger = structlog.get_logger()
         self.notifier_config = notifier_config
-        self.market_data = market_data
+        self.market_data = dict()
         self.last_analysis = dict()
 
         enabled_notifiers = list()
@@ -76,6 +76,9 @@ class Notifier():
                 chat_id=notifier_config['telegram']['required']['chat_id'],
                 parse_mode=notifier_config['telegram']['optional']['parse_mode']
             )
+            self.telegram_clients = dict()
+            self.telegram_clients[notifier_config['telegram']['required']['chat_id']] = self.telegram_client 
+            
             enabled_notifiers.append('telegram')
 
         self.webhook_configured = self._validate_required_config('webhook', notifier_config)
@@ -94,8 +97,16 @@ class Notifier():
 
         self.logger.info('enabled notifers: %s', enabled_notifiers)
 
-    def update_market_data(self, market_data):
-        self.market_data = market_data
+    def register_telegram_client(self, chat_id, config):
+        self.telegram_clients[chat_id] = TelegramNotifier(
+                token=config['required']['token'],
+                chat_id=config['required']['chat_id'],
+                user_id=config['required']['user_id'],
+                parse_mode=config['optional']['parse_mode']
+            )
+    
+    def update_market_data(self, user_id, market_data):
+        self.market_data[user_id] = market_data
 
     def notify_all(self, new_analysis):
         """Trigger a notification for all notification options.
@@ -212,14 +223,14 @@ class Notifier():
                             self.notify_telegram_message(message)
                         
 
-    def notify_telegram_message(self, message):
+    def notify_telegram_message(self, message, chat_id):
         try:
-            self.telegram_client.notify(message)
+            self.telegram_client.notify(message, chat_id)
         except (TelegramTimedOut) as e:
             self.logger.info('Error TimeOut!')
             self.logger.info(e)
 
-    def notify_telegram_chart(self, exchange, market_pair, candle_period ):
+    def notify_telegram_chart(self, chat_id, exchange, market_pair, candle_period ):
         try:
             market = market_pair.replace('/', '_').lower()
             chart_file = './charts/{}_{}_{}.png'.format(exchange, market, candle_period)
@@ -227,9 +238,9 @@ class Notifier():
             if os.path.exists(chart_file):
                 try:
                     message = '{} {} on {}'.format(market_pair, candle_period, exchange.title())
-                    self.telegram_client.send_chart(open(chart_file, 'rb'), message)
+                    self.telegram_client.send_chart(open(chart_file, 'rb'), message, chat_id)
                 except (IOError, SyntaxError) :
-                    self.notify_telegram_message('Error sending chart image.')
+                    self.notify_telegram_message('Error sending chart image.', chat_id)
             else:
                 self.logger.info('Chart file %s doesnt exist.', chart_file)            
 

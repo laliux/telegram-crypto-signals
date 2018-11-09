@@ -24,6 +24,10 @@ from behaviour import Behaviour
 
 import logs
 import structlog
+import copy
+
+#To store config per user/chat_id
+user_config = dict()
 
 # Load settings and create the config object
 config = Configuration()
@@ -82,30 +86,26 @@ def add_to_fibonnaci(exchange, market_pair):
 # update. Error handlers also receive the raised TelegramError object in error.
 
 def start(bot, update, job_queue, chat_data):
-    global settings
+    global config, user_config
     
     """Add job to the queue with due = settings['update_interval'] ."""
     
     chat_id = update.message.chat_id
+    user_id = 'usr_{}'.format(chat_id)
     
-    try:
-        update.message.reply_text('Hi! Welcome to Crypto Signals Bot')
+    logger.info('Starting chat with id: %s' % chat_id)
+    
+    if user_id not in user_config:
+        user_config[user_id] = copy.deepcopy(config)
+        #replace chat id
+        user_config[user_id]['notifiers']['telegram']['required']['chat_id'] = chat_id
+        user_config[user_id]['notifiers']['telegram']['required']['user_id'] = user_id
         
-        # args[0] should contain the time for the timer in seconds
-        due = int(settings['update_interval'])
-        if due < 0:
-            update.message.reply_text('Dont forget to set the update interval. Use the /timeout command !')
-            return
-
-        if 'job' not in chat_data:
-            # Add job to queue
-            job = job_queue.run_repeating(alarm, due, context=chat_id)
-            chat_data['job'] = job
-
-            update.message.reply_text('Default update interval from config file set to %d seconds!' % due)
-
-    except (IndexError, ValueError):
-        update.message.reply_text('Dont forget to set the update interval. Type /help for more info.')
+        notifier.register_telegram_client(chat_id, user_config[user_id]['notifiers']['telegram'])
+            
+    update.message.reply_text('Hi! Welcome to Crypto Signals Bot')
+    update.message.reply_text('Dont forget to set the update interval. Type /help for more info.')
+        
 
 def help(bot, update):
     update.message.reply_text('Available commands:')
@@ -121,17 +121,27 @@ def markets(bot, update):
     update.message.reply_text(str(market_pairs))
 
 def alarm(bot, job):
-    global config, exchange_interface, notifier, settings, market_data, fibonacci
-
-    notifier.update_market_data(market_data)
+    
+    global exchange_interface, notifier, market_data, fibonacci
+    global user_config, notifier
+    
+    chat_id = job.context
+    user_id = 'usr_{}'.format(chat_id)
+    
+    _config = user_config[user_id]
+    _settings = _config['settings'] 
+    
+    logger.info('Processing alarm() for user_id: %s' % user_id)
+    
+    notifier.update_market_data(user_id, market_data)
 
     behaviour = Behaviour(
-            config,
+            _config,
             exchange_interface,
             notifier
         )
 
-    behaviour.run(market_data, fibonacci, settings['output_mode'])
+    behaviour.run(market_data, fibonacci, _settings['output_mode'])
 
 def fibo(bot, update, args):
     """Set Fibonnaci levels for a specific market pair."""
@@ -178,6 +188,10 @@ def fibo(bot, update, args):
 def chart(bot, update, args):
     """Send a chart image for a specific market pair and candle period."""
     global market_data, notifier
+    
+    chat_id = update.message.chat_id
+    
+    logger.info('Processing command for chat_id %s' % str(chat_id))
 
     try:
         # args[0] should contain the name of market
@@ -186,7 +200,7 @@ def chart(bot, update, args):
         if market_pair in market_data['binance']: 
             candle_period = args[1]
 
-            notifier.notify_telegram_chart('binance', market_pair, candle_period)
+            notifier.notify_telegram_chart(chat_id, 'binance', market_pair, candle_period)
         else:
             update.message.reply_text('Market pair %s is not configured!' % market_pair)
 
@@ -274,6 +288,7 @@ def indicator(bot, update, args):
 def set_timeout(bot, update, args, job_queue, chat_data):
     """Add a job to the queue."""
     chat_id = update.message.chat_id
+    
     try:
         # args[0] should contain the time for the timer in seconds
         due = int(args[0])
@@ -283,7 +298,9 @@ def set_timeout(bot, update, args, job_queue, chat_data):
 
         # Add job to queue
         job = job_queue.run_repeating(alarm, due, context=chat_id)
-        chat_data['job'] = job
+        
+        job_id = 'job_{}'.format(chat_id)
+        chat_data[job_id] = job
 
         update.message.reply_text('Timeout successfully set to %d!' % due)
 
@@ -293,13 +310,17 @@ def set_timeout(bot, update, args, job_queue, chat_data):
 
 def unset(bot, update, chat_data):
     """Remove the job if the user changed their mind."""
-    if 'job' not in chat_data:
+    
+    chat_id = update.message.chat_id
+    job_id = 'job_{}'.format(chat_id)
+    
+    if job_id not in chat_data:
         update.message.reply_text('You have no active timer')
         return
 
-    job = chat_data['job']
+    job = chat_data[job_id]
     job.schedule_removal()
-    del chat_data['job']
+    del chat_data[job_id]
 
     update.message.reply_text('Timer successfully unset!')
 
