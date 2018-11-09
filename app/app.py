@@ -55,6 +55,9 @@ notifier = Notifier(config.notifiers, market_data)
 #Dict to save user defined fibonacci levels
 fibonacci = None
 
+#Global Telegram Bot Updater
+updater = None
+
 
 def setup_fibonacci(market_data):
     global fibonacci
@@ -98,10 +101,8 @@ def start(bot, update, job_queue, chat_data):
     if user_id not in user_config:
         user_config[user_id] = copy.deepcopy(config)
         #replace chat id
-        user_config[user_id]['notifiers']['telegram']['required']['chat_id'] = chat_id
-        user_config[user_id]['notifiers']['telegram']['required']['user_id'] = user_id
-        
-        notifier.register_telegram_client(chat_id, user_config[user_id]['notifiers']['telegram'])
+        user_config[user_id].notifiers['telegram']['required']['chat_id'] = chat_id
+        user_config[user_id].notifiers['telegram']['required']['user_id'] = user_id
             
     update.message.reply_text('Hi! Welcome to Crypto Signals Bot')
     update.message.reply_text('Dont forget to set the update interval. Type /help for more info.')
@@ -122,26 +123,25 @@ def markets(bot, update):
 
 def alarm(bot, job):
     
-    global exchange_interface, notifier, market_data, fibonacci
-    global user_config, notifier
+    global exchange_interface, market_data, fibonacci
+    global user_config, updater
     
     chat_id = job.context
     user_id = 'usr_{}'.format(chat_id)
     
     _config = user_config[user_id]
-    _settings = _config['settings'] 
+    _notifier = Notifier(_config.notifiers, market_data)
+    _notifier.telegram_client.set_updater(updater)
     
     logger.info('Processing alarm() for user_id: %s' % user_id)
-    
-    notifier.update_market_data(user_id, market_data)
 
     behaviour = Behaviour(
             _config,
             exchange_interface,
-            notifier
+            _notifier
         )
 
-    behaviour.run(market_data, fibonacci, _settings['output_mode'])
+    behaviour.run(market_data, fibonacci, _config.settings['output_mode'])
 
 def fibo(bot, update, args):
     """Set Fibonnaci levels for a specific market pair."""
@@ -251,12 +251,18 @@ def market(bot, update, args):
 
 def indicators(bot, update):
     """ Display enabled indicators """
+    
+    chat_id = update.message.chat_id
+    user_id = 'usr_{}'.format(chat_id)
+    
+    _config = user_config[user_id]
+        
     update.message.reply_text('Configured indicators ... ')
 
-    for indicator in config.indicators:
+    for indicator in _config.indicators:
         msg = indicator
 
-        for conf in config.indicators[indicator] :
+        for conf in _config.indicators[indicator] :
             if conf['enabled']:
                 msg = '%s %s' % (msg, conf['candle_period'])
 
@@ -265,6 +271,12 @@ def indicators(bot, update):
 
 def indicator(bot, update, args):
     """ Manage indicators """
+    
+    chat_id = update.message.chat_id
+    user_id = 'usr_{}'.format(chat_id)
+    
+    _config = user_config[user_id]
+        
     if args is None or len(args) == 0 :
         update.message.reply_text('Usage: /indicator <indicator> <candle_period> <enable|disable>')
     else:
@@ -276,9 +288,9 @@ def indicator(bot, update, args):
             # args[2] the operation
             enabled = args[2] == 'enable'
 
-            for idx, conf in enumerate(config.indicators[indicator]) :
+            for idx, conf in enumerate(_config.indicators[indicator]) :
                 if conf['candle_period'] == candle_period:
-                    config.indicators[indicator][idx]['enabled'] = enabled
+                    _config.indicators[indicator][idx]['enabled'] = enabled
             
             update.message.reply_text('Changes applied successfully!')
         except (IndexError, ValueError) as err:
@@ -331,7 +343,7 @@ def error(bot, update, error):
 
 
 def main():
-    global market_data
+    global market_data, updater
 
     setup_fibonacci(market_data)
 
@@ -361,7 +373,7 @@ def main():
     # log all errors
     dp.add_error_handler(error)
 
-    notifier.telegram_client.setup_bot(updater)
+    
 
     # Start the Bot
     updater.start_polling()
