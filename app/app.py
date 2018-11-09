@@ -26,8 +26,9 @@ import logs
 import structlog
 import copy
 
-#To store config per user/chat_id
-user_config = dict()
+#To store config per each user
+users_config = dict()
+markets_data = dict()
 
 # Load settings and create the config object
 config = Configuration()
@@ -88,22 +89,25 @@ def add_to_fibonnaci(exchange, market_pair):
 # Define a few command handlers. These usually take the two arguments bot and
 # update. Error handlers also receive the raised TelegramError object in error.
 
-def start(bot, update, job_queue, chat_data):
-    global config, user_config
+def start(bot, update):    
+    """Mainly used to set a general config per user."""
     
-    """Add job to the queue with due = settings['update_interval'] ."""
+    global config, users_config, markets_data
     
     chat_id = update.message.chat_id
     user_id = 'usr_{}'.format(chat_id)
     
     logger.info('Starting chat with id: %s' % chat_id)
     
-    if user_id not in user_config:
-        user_config[user_id] = copy.deepcopy(config)
+    if user_id not in users_config:
+        users_config[user_id] = copy.deepcopy(config)
         #replace chat id
-        user_config[user_id].notifiers['telegram']['required']['chat_id'] = chat_id
-        user_config[user_id].notifiers['telegram']['required']['user_id'] = user_id
+        users_config[user_id].notifiers['telegram']['required']['chat_id'] = chat_id
+        users_config[user_id].notifiers['telegram']['required']['user_id'] = user_id
             
+    if user_id not in markets_data:
+        markets_data[user_id] = copy.deepcopy(market_data)
+        
     update.message.reply_text('Hi! Welcome to Crypto Signals Bot')
     update.message.reply_text('Dont forget to set the update interval. Type /help for more info.')
         
@@ -117,20 +121,17 @@ def help(bot, update):
     update.message.reply_text('/indicators to get a list of configured indicators')
     update.message.reply_text('/indicator to disable/enable an indicator')
 
-def markets(bot, update):
-    update.message.reply_text('List of market pairs to analyze ... ')
-    update.message.reply_text(str(market_pairs))
-
 def alarm(bot, job):
     
-    global exchange_interface, market_data, fibonacci
-    global user_config, updater
+    global exchange_interface, markets_data, fibonacci
+    global users_config, updater
     
     chat_id = job.context
     user_id = 'usr_{}'.format(chat_id)
     
-    _config = user_config[user_id]
-    _notifier = Notifier(_config.notifiers, market_data)
+    _market_data = markets_data[user_id]
+    _config = users_config[user_id]
+    _notifier = Notifier(_config.notifiers, _market_data)
     _notifier.telegram_client.set_updater(updater)
     
     logger.info('Processing alarm() for user_id: %s' % user_id)
@@ -141,7 +142,7 @@ def alarm(bot, job):
             _notifier
         )
 
-    behaviour.run(market_data, fibonacci, _config.settings['output_mode'])
+    behaviour.run(_market_data, fibonacci, _config.settings['output_mode'])
 
 def fibo(bot, update, args):
     """Set Fibonnaci levels for a specific market pair."""
@@ -208,9 +209,26 @@ def chart(bot, update, args):
         logger.error('Error on chart() command... %s', err)
         update.message.reply_text('Usage: /chart <market_pair> <candle_period>')
 
+def markets(bot, update):
+    """ Return a list with the configured market pairs"""
+    global users_config
+        
+    chat_id = update.message.chat_id
+    user_id = 'usr_{}'.format(chat_id)
+    
+    _market_pairs = users_config[user_id].settings['market_pairs']
+        
+    update.message.reply_text('List of market pairs to analyze ... ')
+    update.message.reply_text(str(_market_pairs))
+    
 def market(bot, update, args):
     """Add/Remove a marker pair."""
-    global market_data
+    global markets_data, users_config
+    
+    chat_id = update.message.chat_id
+    user_id = 'usr_{}'.format(chat_id)    
+    _config = users_config[user_id]
+    _settings = _config.settings   
     
     #TODO: call get_default_exchange()
     exchange = 'binance'
@@ -223,13 +241,15 @@ def market(bot, update, args):
         
                 
         if operation == 'add':
-            settings['market_pairs'].append(market_pair)
-            market_data = exchange_interface.get_exchange_markets(markets=settings['market_pairs'])
+            _settings['market_pairs'].append(market_pair)
+            _market_data = exchange_interface.get_exchange_markets(markets=_settings['market_pairs'])
             
-            if market_pair not in market_data[exchange]:
-                settings['market_pairs'].remove(market_pair)
+            if market_pair not in _market_data[exchange]:
+                _settings['market_pairs'].remove(market_pair)
                 update.message.reply_text('%s doesnt exist on %s!' % (market_pair, exchange))
                 return
+            else:
+                markets_data[user_id] = _market_data
             
             add_to_fibonnaci(exchange, market_pair)
 
@@ -237,11 +257,13 @@ def market(bot, update, args):
 
         if operation == 'remove':
             
-            if market_pair not in settings['market_pairs']:
-                update.message.reply_text('%s is not in market pairs list.' % market_pair)
+            if market_pair not in _settings['market_pairs']:
+                update.message.reply_text('%s is not in your market pairs list.' % market_pair)
                 
-            settings['market_pairs'].remove(market_pair)
-            market_data = exchange_interface.get_exchange_markets(markets=settings['market_pairs'])
+            _settings['market_pairs'].remove(market_pair)
+            _market_data = exchange_interface.get_exchange_markets(markets=_settings['market_pairs'])
+            markets_data[user_id] = _market_data
+            
             update.message.reply_text('%s successfully removed!' % market_pair)
 
     except (IndexError, ValueError) as err:
@@ -255,7 +277,7 @@ def indicators(bot, update):
     chat_id = update.message.chat_id
     user_id = 'usr_{}'.format(chat_id)
     
-    _config = user_config[user_id]
+    _config = users_config[user_id]
         
     update.message.reply_text('Configured indicators ... ')
 
@@ -275,7 +297,7 @@ def indicator(bot, update, args):
     chat_id = update.message.chat_id
     user_id = 'usr_{}'.format(chat_id)
     
-    _config = user_config[user_id]
+    _config = users_config[user_id]
         
     if args is None or len(args) == 0 :
         update.message.reply_text('Usage: /indicator <indicator> <candle_period> <enable|disable>')
@@ -354,9 +376,7 @@ def main():
     dp = updater.dispatcher
 
     # on different commands - answer in Telegram
-    dp.add_handler(CommandHandler("start", start, 
-                                  pass_job_queue=True, 
-                                  pass_chat_data=True ))
+    dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", help))
     dp.add_handler(CommandHandler("timeout", set_timeout,
                                   pass_args=True,
