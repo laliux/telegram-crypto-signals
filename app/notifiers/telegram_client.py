@@ -15,7 +15,7 @@ class TelegramNotifier(NotifierUtils):
     """Used to notify user of events via telegram.
     """
 
-    def __init__(self, token, chat_id, user_id, parse_mode):
+    def __init__(self, token, chat_id, parse_mode):
         """Initialize TelegramNotifier class
 
         Args:
@@ -29,7 +29,6 @@ class TelegramNotifier(NotifierUtils):
         #self.updater = Updater(token)
         self.chat_id = chat_id
         self.parse_mode = parse_mode
-        self.user_id = user_id
         self.updater = None
 
     @retry(
