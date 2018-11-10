@@ -59,19 +59,13 @@ class Behaviour(IndicatorUtils):
             output_mode (str): Which console output mode to use.
         """
 
-        self.logger.info("Starting default analyzer...")
-
-        self.logger.info("Using the following exchange(s): %s", list(market_data.keys()))
+        self.logger.info("Starting default analyzer for %s ...", list(market_data.keys()))
 
         self.all_historical_data = self.get_all_historical_data(market_data)
 
-        self._create_charts(market_data, fibonacci)
+        #self._create_charts(market_data, fibonacci)
 
-        new_result = self._test_strategies(market_data, output_mode)
-        
-        self.logger.info('Finishing analysis execution..')
-        
-        return new_result
+        return self._test_strategies(market_data, output_mode)
 
     def get_all_historical_data(self, market_data):
         """Get historical data for each exchange/market pair/candle period
@@ -84,7 +78,7 @@ class Behaviour(IndicatorUtils):
         data = dict()
 
         for exchange in market_data:
-            self.logger.info("Getting data of %s", exchange)
+            self.logger.info("Getting candle data of %s", exchange)
             if exchange not in data:
                 data[exchange] = dict()
 
@@ -102,11 +96,15 @@ class Behaviour(IndicatorUtils):
                             candle_period = indicator_conf['candle_period']
 
                             if candle_period not in data[exchange][market_pair]:
-                                data[exchange][market_pair][candle_period] = self._get_historical_data(
-                                market_pair,
-                                exchange,
-                                candle_period
-                             )
+                                candle_data = self._get_historical_data(market_pair, exchange, candle_period)
+                                
+                                if len(candle_data) == 0:
+                                    self.logger.warn('No candle data for %s %s on %s', market_pair, candle_period, exchange)
+                                    continue
+                                    
+                                data[exchange][market_pair][candle_period] = candle_data
+        
+        #Return after iterate all exchanges
         return data
 
     def _test_strategies(self, market_data, output_mode):
@@ -178,21 +176,14 @@ class Behaviour(IndicatorUtils):
                 continue
 
             for indicator_conf in self.indicator_conf[indicator]:
-                if indicator_conf['enabled']:
-                    candle_period = indicator_conf['candle_period']
-                else:
-                    self.logger.debug("%s is disabled, skipping.", indicator)
+                if not indicator_conf['enabled']:
                     continue
-
-                if candle_period in historical_data_cache:
-                    self.logger.info('Reading candle data from cache for %s %s',indicator, indicator_conf['candle_period'])
-                else:
-                    self.logger.info('Re-Reading candle data from exchange for %s %s',indicator, indicator_conf['candle_period'])
-                    historical_data_cache[candle_period] = self._get_historical_data(
-                        market_pair,
-                        exchange,
-                        candle_period
-                    )
+                    
+                candle_period = indicator_conf['candle_period']
+                
+                #Exchange doesnt support such candle period
+                if candle_period not in historical_data_cache:
+                    continue
 
                 if historical_data_cache[candle_period]:
                     analysis_args = {
@@ -230,7 +221,8 @@ class Behaviour(IndicatorUtils):
 
         informant_dispatcher = self.strategy_analyzer.informant_dispatcher()
         results = { informant: list() for informant in self.informant_conf.keys() }
-        historical_data_cache = dict()
+        #historical_data_cache = dict()
+        historical_data_cache = self.all_historical_data[exchange][market_pair]
 
         for informant in self.informant_conf:
             if informant not in informant_dispatcher:
@@ -238,18 +230,14 @@ class Behaviour(IndicatorUtils):
                 continue
 
             for informant_conf in self.informant_conf[informant]:
-                if informant_conf['enabled']:
-                    candle_period = informant_conf['candle_period']
-                else:
-                    self.logger.debug("%s is disabled, skipping.", informant)
+                if not informant_conf['enabled']:
                     continue
-
+                    
+                candle_period = informant_conf['candle_period']
+                
+                #Exchange doesnt support such candle period
                 if candle_period not in historical_data_cache:
-                    historical_data_cache[candle_period] = self._get_historical_data(
-                        market_pair,
-                        exchange,
-                        candle_period
-                    )
+                    continue
 
                 if historical_data_cache[candle_period]:
                     analysis_args = {
