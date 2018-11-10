@@ -16,19 +16,27 @@ Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
 
+from apscheduler.schedulers.background import BackgroundScheduler
+
 from telegram.ext import Updater, CommandHandler
 from conf import Configuration
 from exchange import ExchangeInterface
 from notification import Notifier
 from behaviour import Behaviour
 
+import concurrent.futures
 import logs
 import structlog
 import copy
+#from _hashlib import new
 
-#To store config per each user
+#To store config per user
 users_config = dict()
-markets_data = dict()
+users_market_data = dict()
+users_exchanges = dict()
+
+#New analysis results updated each 5min
+new_results = dict()
 
 # Load settings and create the config object
 config = Configuration()
@@ -58,6 +66,9 @@ fibonacci = None
 
 #Global Telegram Bot Updater
 updater = None
+
+# create schedule for retrieving prices
+scheduler = BackgroundScheduler()
 
 
 def setup_fibonacci(market_data):
@@ -92,7 +103,8 @@ def add_to_fibonnaci(exchange, market_pair):
 def start(bot, update):    
     """Mainly used to set a general config per user."""
     
-    global config, users_config, markets_data
+    global config, users_config, users_market_data, users_exchanges 
+    global exchange_interface
     
     chat_id = update.message.chat_id
     user_id = 'usr_{}'.format(chat_id)
@@ -104,9 +116,15 @@ def start(bot, update):
         #replace chat id
         users_config[user_id].notifiers['telegram']['required']['chat_id'] = chat_id
         users_config[user_id].notifiers['telegram']['required']['user_id'] = user_id
-            
-    if user_id not in markets_data:
-        markets_data[user_id] = copy.deepcopy(market_data)
+     
+    users_config[user_id].exchanges = exchange_interface.get_default_exchanges()
+    users_exchanges[user_id] = list(users_config[user_id].exchanges.keys())
+    
+    logger.info('Users exchanges... ')
+    logger.info( users_exchanges[user_id] ) 
+           
+    if user_id not in users_market_data:
+        users_market_data[user_id] = copy.deepcopy(market_data)
         
     update.message.reply_text('Hi! Welcome to Crypto Signals Bot')
     update.message.reply_text('Dont forget to set the update interval. Type /help for more info.')
@@ -123,26 +141,28 @@ def help(bot, update):
 
 def alarm(bot, job):
     
-    global exchange_interface, markets_data, fibonacci
-    global users_config, updater
+    global exchange_interface, fibonacci, new_results,  updater, logger
+    global users_config, users_exchanges, users_market_data
     
     chat_id = job.context
     user_id = 'usr_{}'.format(chat_id)
     
-    _market_data = markets_data[user_id]
+    _market_data = users_market_data[user_id]
     _config = users_config[user_id]
     _notifier = Notifier(_config.notifiers, _market_data)
     _notifier.telegram_client.set_updater(updater)
     
-    logger.info('Processing alarm() for user_id: %s' % user_id)
+    _new_results = dict()
+    
+    for _exchange in _market_data:
+        if _exchange in users_exchanges[user_id] : #TODO: improve this.. update user market_data
+            _new_results[_exchange] = copy.deepcopy(new_results[_exchange])
+          
+    _notifier.notify_all(_new_results)
+    
+    logger.info('Processing alarm() for user %s' % user_id)
+    logger.info('Sending notifications for exchanges %s' % str(list(_new_results.keys())))
 
-    behaviour = Behaviour(
-            _config,
-            exchange_interface,
-            _notifier
-        )
-
-    behaviour.run(_market_data, fibonacci, _config.settings['output_mode'])
 
 def fibo(bot, update, args):
     """Set Fibonnaci levels for a specific market pair."""
@@ -209,6 +229,49 @@ def chart(bot, update, args):
         logger.error('Error on chart() command... %s', err)
         update.message.reply_text('Usage: /chart <market_pair> <candle_period>')
 
+def exchanges(bot, update):
+    """ Return a list with the configured exchanges"""
+    global users_config, users_exchanges
+        
+    chat_id = update.message.chat_id
+    user_id = 'usr_{}'.format(chat_id)
+    
+    _exchanges = users_exchanges[user_id]
+        
+    update.message.reply_text('List of exchanges to analyze ... ')
+    update.message.reply_text(str(_exchanges))
+    
+def exchange(bot, update, args):
+    """ Enable/Disable an exchange """
+    global users_config, users_exchanges
+    
+    chat_id = update.message.chat_id
+    user_id = 'usr_{}'.format(chat_id)
+    
+    _exchanges = users_exchanges[user_id]
+    
+    try:
+        operation = args[0]
+        exchange = args[1].strip().lower()
+        
+        if operation == 'disable':
+            if exchange in _exchanges:
+                _exchanges.remove(exchange)
+                update.message.reply_text('Exchange %s was disabled sucessfully!' % exchange)
+                
+                logger.info('Exchange %s disabled for user %s' % (exchange, user_id))
+            else:
+                update.message.reply_text('Exchange %s is not enable for you or doesnt exist!' % exchange)
+            
+        if operation == 'add':
+            #Not implemeted
+            update.message.reply_text('This operation only can be done for Bot Admin')
+            
+    except (IndexError, ValueError) as err:
+        logger.error('Error on exchange() command... %s', err)
+        update.message.reply_text('Usage: /exchange [add|remove/enable/disable] exchange_name')
+        update.message.reply_text('For example: /exchange disable bitfinex')        
+        
 def markets(bot, update):
     """ Return a list with the configured market pairs"""
     global users_config
@@ -221,14 +284,23 @@ def markets(bot, update):
     update.message.reply_text('List of market pairs to analyze ... ')
     update.message.reply_text(str(_market_pairs))
     
+    
 def market(bot, update, args):
     """Add/Remove a marker pair."""
-    global markets_data, users_config
+    global users_config, settings, exchange_interface
+    
+    #To store all exchanges/market_pairs to analyze
+    global market_data
+    
+    #To store custom exchanges/market_pairs for each user
+    global users_market_data
     
     chat_id = update.message.chat_id
-    user_id = 'usr_{}'.format(chat_id)    
+    user_id = 'usr_{}'.format(chat_id) 
+     
     _config = users_config[user_id]
-    _settings = _config.settings   
+    _settings  = _config.settings
+    _exchanges = _config.exchanges
     
     #TODO: call get_default_exchange()
     exchange = 'binance'
@@ -242,18 +314,37 @@ def market(bot, update, args):
                 
         if operation == 'add':
             _settings['market_pairs'].append(market_pair)
-            _market_data = exchange_interface.get_exchange_markets(markets=_settings['market_pairs'])
+            _market_data = exchange_interface.get_exchange_markets(
+                                                    exchanges = _exchanges, 
+                                                    markets = _settings['market_pairs']
+                                                    )
+            exists = False
+            for _exchange in _market_data:
+                for _pair in _market_data[_exchange]:
+                    if(_pair in _market_data[_exchange]):
+                        exists = True
+                        break
+                
+            #Is a valid market pair
+            if exists == True:
+                users_market_data[user_id] = _market_data
+                
+                #Save user market pair in global config to be part of analysis
+                if market_pair not in settings['market_pairs']:
+                    settings['market_pairs'].append(market_pair)
+                    
+                    #by default takes global config.exchanges
+                    market_data = exchange_interface.get_exchange_markets(markets=settings['market_pairs'])
             
-            if market_pair not in _market_data[exchange]:
-                _settings['market_pairs'].remove(market_pair)
-                update.message.reply_text('%s doesnt exist on %s!' % (market_pair, exchange))
-                return
-            else:
-                markets_data[user_id] = _market_data
-            
-            add_to_fibonnaci(exchange, market_pair)
+                #TODO: fix it
+                add_to_fibonnaci(exchange, market_pair)
 
-            update.message.reply_text('%s successfully added!' % market_pair)
+                update.message.reply_text('%s successfully added!' % market_pair)
+            else:
+                _settings['market_pairs'].remove(market_pair)
+                update.message.reply_text('%s doesnt exist on your exchanges %s!' % (market_pair, str(_exchanges)))
+                return
+                
 
         if operation == 'remove':
             
@@ -262,7 +353,8 @@ def market(bot, update, args):
                 
             _settings['market_pairs'].remove(market_pair)
             _market_data = exchange_interface.get_exchange_markets(markets=_settings['market_pairs'])
-            markets_data[user_id] = _market_data
+            
+            users_market_data[user_id] = _market_data
             
             update.message.reply_text('%s successfully removed!' % market_pair)
 
@@ -363,7 +455,48 @@ def error(bot, update, error):
     """Log Errors caused by Updates."""
     logger.warning('Update "%s" caused error "%s"', update, error)
 
+def load_exchange(exchange):
+    global config, market_data, fibonacci, new_results
+           
+    try:
+        single_config = dict()
+        single_config[exchange] = config.exchanges[exchange]
+                
+        single_exchange_interface = ExchangeInterface(single_config)
+            
+        single_market_data = dict()
+        single_market_data[exchange] = market_data[exchange]
+                
+        behaviour = Behaviour(config, single_exchange_interface)
+    
+        new_result = behaviour.run(single_market_data, fibonacci, config.settings['output_mode'])
+        
+        new_results[exchange] = new_result[exchange]
+        
+        return True
+    except Exception as exc:
+        logger.info('Exception while processing exchange: %s', exchange)
+        logger.info('%s', exc)
+        return False
+    
+@scheduler.scheduled_job('interval', minutes=2)
+def load_exchanges():
+    global market_data, new_results
+        
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_exchange = {executor.submit(load_exchange, exchange): exchange for exchange in market_data}
+        
+        for future in concurrent.futures.as_completed(future_to_exchange):
+            try:      
+                exchange = future_to_exchange[future]
+                          
+                if (future.result() == True):
+                    logger.info('New analysis results for: %s' % exchange )
 
+            except Exception as exc:
+                logger.info('Exception processing exchanges: %s' % (exc))
+
+    
 def main():
     global market_data, updater
 
@@ -382,7 +515,9 @@ def main():
                                   pass_args=True,
                                   pass_job_queue=True,
                                   pass_chat_data=True))
-    dp.add_handler(CommandHandler("markets", markets))                                  
+    dp.add_handler(CommandHandler("exchanges", exchanges))
+    dp.add_handler(CommandHandler("exchange", exchange, pass_args=True))
+    dp.add_handler(CommandHandler("markets", markets))
     dp.add_handler(CommandHandler("market", market, pass_args=True))
     dp.add_handler(CommandHandler("indicators", indicators))
     dp.add_handler(CommandHandler("indicator", indicator, pass_args=True))
@@ -402,7 +537,10 @@ def main():
     # SIGABRT. This should be used most of the time, since start_polling() is
     # non-blocking and will stop the bot gracefully.
     updater.idle()
-
+  
 
 if __name__ == '__main__':
+    scheduler.start() 
+    
     main()
+    
