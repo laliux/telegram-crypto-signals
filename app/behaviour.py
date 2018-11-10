@@ -3,18 +3,16 @@
 2. Notify users when a threshold is crossed.
 """
 
-import json
 import traceback
 import structlog
 import os
 
-import pandas
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.ticker as mticker
 
-from matplotlib.dates import DateFormatter, DayLocator,HourLocator,  WeekdayLocator, MONDAY
+from matplotlib.dates import DateFormatter
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
@@ -31,15 +29,13 @@ class Behaviour(IndicatorUtils):
     """Default analyzer which gives users basic trading information.
     """
 
-    def __init__(self, config, exchange_interface, notifier):
+    def __init__(self, config, exchange_interface):
         """Initializes DefaultBehaviour class.
 
         Args:
             indicator_conf (dict): A dictionary of configuration for this analyzer.
             exchange_interface (ExchangeInterface): Instance of the ExchangeInterface class for
                 making exchange queries.
-            notifier (Notifier): Instance of the notifier class for informing a user when a
-                threshold has been crossed.
         """
 
         self.logger = structlog.get_logger()
@@ -48,7 +44,6 @@ class Behaviour(IndicatorUtils):
         self.crossover_conf = config.crossovers
         self.exchange_interface = exchange_interface
         self.strategy_analyzer = StrategyAnalyzer()
-        self.notifier = notifier
         self.all_historical_data = dict()
 
         output_interface = Output()
@@ -73,8 +68,10 @@ class Behaviour(IndicatorUtils):
         self._create_charts(market_data, fibonacci)
 
         new_result = self._test_strategies(market_data, output_mode)
-
-        self.notifier.notify_all(new_result)
+        
+        self.logger.info('Finishing analysis execution..')
+        
+        return new_result
 
     def get_all_historical_data(self, market_data):
         """Get historical data for each exchange/market pair/candle period
@@ -122,12 +119,13 @@ class Behaviour(IndicatorUtils):
 
         new_result = dict()
         for exchange in market_data:
-            self.logger.info("Beginning analysis of %s", exchange)
+            
             if exchange not in new_result:
                 new_result[exchange] = dict()
 
             for market_pair in market_data[exchange]:
-                self.logger.info("Beginning analysis of %s", market_pair)
+                self.logger.info("Beginning analysis of %s on %s" % (market_pair, exchange))
+                
                 if market_pair not in new_result[exchange]:
                     new_result[exchange][market_pair] = dict()
 
@@ -405,7 +403,7 @@ class Behaviour(IndicatorUtils):
 
                 for candle_period in historical_data:
                     candles_data = historical_data[candle_period]
-                    self.logger.info('Creating chart for %s %s', market_pair, candle_period)
+                    self.logger.info('Creating chart for %s %s %s', exchange, market_pair, candle_period)
                     self._create_chart(exchange, market_pair, candle_period, candles_data, fibonacci_levels, charts_dir)
 
 
