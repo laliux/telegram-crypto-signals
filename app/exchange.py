@@ -149,3 +149,6 @@ class ExchangeInterface():
             time.sleep(self.exchanges[exchange].rateLimit / 1000)
 
         return exchange_markets
+    
+    def get_default_exchanges(self):
+        return self.exchanges
