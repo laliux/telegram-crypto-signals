@@ -97,7 +97,7 @@ class Notifier():
         self.logger.info('enabled notifers: %s', enabled_notifiers)
 
     
-    def notify_all(self, new_analysis):
+    def notify_all(self, new_analysis, user_indicators):
         """Trigger a notification for all notification options.
 
         Args:
@@ -108,7 +108,7 @@ class Notifier():
         self.notify_discord(new_analysis)
         self.notify_twilio(new_analysis)
         self.notify_gmail(new_analysis)
-        self.notify_telegram(new_analysis)
+        self.notify_telegram(new_analysis, user_indicators)
         self.notify_webhook(new_analysis)
         self.notify_stdout(new_analysis)
 
@@ -176,7 +176,7 @@ class Notifier():
                 self.gmail_client.notify(message)
 
 
-    def notify_telegram(self, new_analysis):
+    def notify_telegram(self, new_analysis, user_indicators):
         """Send notifications via the telegram notifier
 
         Args:
@@ -187,7 +187,8 @@ class Notifier():
 
             messages = self._indicator_messages(
                 new_analysis,
-                self.notifier_config['telegram']['optional']['template']
+                self.notifier_config['telegram']['optional']['template'],
+                user_indicators
             )
 
             for exchange in messages:
@@ -389,7 +390,7 @@ class Notifier():
         self.last_analysis = {**self.last_analysis, **new_analysis}
         return new_message
 
-    def _indicator_messages(self, new_analysis, template):
+    def _indicator_messages(self, new_analysis, template, user_indicators):
         """Creates a message list from a user defined template
 
         Args:
@@ -439,6 +440,13 @@ class Notifier():
                             values = dict()
 
                             if indicator_type == 'indicators':
+                                
+                                #Check for any user config
+                                candle_period = analysis['config']['candle_period']
+                                if candle_period not in user_indicators[indicator]:
+                                    self.logger.info('###Skipping %s %s ' % (indicator, candle_period))
+                                    continue
+                                
                                 for signal in analysis['config']['signal']:
                                     latest_result = analysis['result'].iloc[-1]
 
