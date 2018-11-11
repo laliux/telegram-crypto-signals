@@ -34,6 +34,7 @@ import copy
 users_config = dict()
 users_market_data = dict()
 users_exchanges = dict()
+users_indicators = dict()
 
 #New analysis results updated each 5min
 new_results = dict()
@@ -119,9 +120,13 @@ def start(bot, update):
      
     users_config[user_id].exchanges = exchange_interface.get_default_exchanges()
     users_exchanges[user_id] = list(users_config[user_id].exchanges.keys())
+    users_indicators[user_id] = get_user_indicators(users_config[user_id].indicators)
     
-    logger.info('Users exchanges... ')
-    logger.info( users_exchanges[user_id] ) 
+    logger.info('Users exchanges ... ')
+    logger.info( users_exchanges[user_id] )
+    
+    logger.info('Users indicators ... ')
+    logger.info( users_indicators[user_id] ) 
            
     if user_id not in users_market_data:
         users_market_data[user_id] = copy.deepcopy(market_data)
@@ -129,7 +134,6 @@ def start(bot, update):
     update.message.reply_text('Hi! Welcome to Crypto Signals Bot')
     update.message.reply_text('Dont forget to set the update interval. Type /help for more info.')
         
-
 def help(bot, update):
     update.message.reply_text('Available commands:')
     update.message.reply_text('/timeout to set the update interval')
@@ -138,11 +142,13 @@ def help(bot, update):
     update.message.reply_text('/market to add or remove a market pair')
     update.message.reply_text('/indicators to get a list of configured indicators')
     update.message.reply_text('/indicator to disable/enable an indicator')
+    update.message.reply_text('/exchanges to get a list of configured Exchanges')
+    update.message.reply_text('/exchange to disable/enable an Exchange')    
 
 def alarm(bot, job):
     
     global exchange_interface, fibonacci, new_results,  updater, logger
-    global users_config, users_exchanges, users_market_data
+    global users_config, users_exchanges, users_market_data, users_indicators
     
     chat_id = job.context
     user_id = 'usr_{}'.format(chat_id)
@@ -157,11 +163,11 @@ def alarm(bot, job):
     for _exchange in _market_data:
         if _exchange in users_exchanges[user_id] : #TODO: improve this.. update user market_data
             _new_results[_exchange] = copy.deepcopy(new_results[_exchange])
-          
-    _notifier.notify_all(_new_results)
+
+    _notifier.notify_telegram(_new_results, users_indicators[user_id])
     
     logger.info('Processing alarm() for user %s' % user_id)
-    logger.info('Sending notifications for exchanges %s' % str(list(_new_results.keys())))
+    logger.info('Sending notifications of the exchanges %s' % str(list(_new_results.keys())))
 
 
 def fibo(bot, update, args):
@@ -385,6 +391,7 @@ def indicators(bot, update):
 
 def indicator(bot, update, args):
     """ Manage indicators """
+    global users_indicators
     
     chat_id = update.message.chat_id
     user_id = 'usr_{}'.format(chat_id)
@@ -405,6 +412,8 @@ def indicator(bot, update, args):
             for idx, conf in enumerate(_config.indicators[indicator]) :
                 if conf['candle_period'] == candle_period:
                     _config.indicators[indicator][idx]['enabled'] = enabled
+            
+            users_indicators[user_id] = get_user_indicators(_config.indicators)
             
             update.message.reply_text('Changes applied successfully!')
         except (IndexError, ValueError) as err:
@@ -455,6 +464,17 @@ def error(bot, update, error):
     """Log Errors caused by Updates."""
     logger.warning('Update "%s" caused error "%s"', update, error)
 
+def get_user_indicators(config_indicators):
+    _indicators = dict()
+    
+    for _indicator in config_indicators:
+        _indicators[_indicator] = list()
+        for conf in config_indicators[_indicator]:
+            if conf['enabled']:
+                _indicators[_indicator].append(conf['candle_period'])
+        
+    return _indicators
+
 def load_exchange(exchange):
     global config, market_data, fibonacci, new_results
            
@@ -469,9 +489,9 @@ def load_exchange(exchange):
                 
         behaviour = Behaviour(config, single_exchange_interface)
     
-        new_result = behaviour.run(single_market_data, fibonacci, config.settings['output_mode'])
+        new_result = behaviour.run(exchange, single_market_data, fibonacci, config.settings['output_mode'])
         
-        new_results[exchange] = new_result[exchange]
+        new_results[exchange] = new_result
         
         return True
     except Exception as exc:
