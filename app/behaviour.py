@@ -50,7 +50,7 @@ class Behaviour(IndicatorUtils):
         self.output = output_interface.dispatcher
 
 
-    def run(self, market_data, fibonacci, output_mode):
+    def run(self, exchange, market_data, fibonacci, output_mode):
         """The analyzer entrypoint
 
         Args:
@@ -59,13 +59,15 @@ class Behaviour(IndicatorUtils):
             output_mode (str): Which console output mode to use.
         """
 
-        self.logger.info("Starting default analyzer for %s ...", list(market_data.keys()))
+        self.logger.info("Starting default analyzer for %s ...", exchange)
 
         self.all_historical_data = self.get_all_historical_data(market_data)
 
-        #self._create_charts(market_data, fibonacci)
+        new_result = self._test_strategies(market_data, output_mode)
+        
+        self._create_charts(exchange, market_data, new_result, fibonacci)
 
-        return self._test_strategies(market_data, output_mode)
+        return new_result[exchange]
 
     def get_all_historical_data(self, market_data):
         """Get historical data for each exchange/market pair/candle period
@@ -372,30 +374,50 @@ class Behaviour(IndicatorUtils):
             results = str()
         return results
 
-    def _create_charts(self, market_data, fibonacci):
+    def _create_charts(self, exchange, market_data, new_analysis, fibonacci):
         """Create charts for each market_pair/candle_period
 
         Args:
             market_data (dict): A dictionary containing the market data of the symbols
         """
+                
         charts_dir = './charts'
 
         if not os.path.exists(charts_dir):
             os.mkdir(charts_dir)
 
-        for exchange in market_data:
-            for market_pair in market_data[exchange]:
-                historical_data = self.all_historical_data[exchange][market_pair]
+        for market_pair in market_data[exchange]:
+            indicators = new_analysis[exchange][market_pair]['indicators']
+            
+            self.logger.info('Info for OBV indicator when creating charts..')
+            
+            #OBV indicators
+            obv = dict()
+            for index, analysis in enumerate(indicators['obv']):
+                if analysis['result'].shape[0] == 0:
+                    continue
+                
+                obv[analysis['config']['candle_period']] = analysis['result']          
+            
+            historical_data = self.all_historical_data[exchange][market_pair]
 
-                fibonacci_levels = fibonacci[exchange][market_pair]
+            fibonacci_levels = fibonacci[exchange][market_pair]
 
-                for candle_period in historical_data:
-                    candles_data = historical_data[candle_period]
-                    self.logger.info('Creating chart for %s %s %s', exchange, market_pair, candle_period)
-                    self._create_chart(exchange, market_pair, candle_period, candles_data, fibonacci_levels, charts_dir)
+            for candle_period in historical_data:
+                candles_data = historical_data[candle_period]
+                self.logger.info('Creating chart for %s %s %s', exchange, market_pair, candle_period)
+                
+                if candle_period in obv:
+                    obv_df = obv[candle_period]
+                else:
+                    obv_df = None
+                    
+                self._create_chart(exchange, market_pair, candle_period, candles_data, 
+                                   fibonacci_levels, obv_df, charts_dir)
 
 
-    def _create_chart(self, exchange, market_pair, candle_period, candles_data, fibonacci_levels, charts_dir):
+    def _create_chart(self, exchange, market_pair, candle_period, candles_data, 
+                      fibonacci_levels, obv_df, charts_dir):
 
         df = self.convert_to_dataframe(candles_data)
 
