@@ -218,26 +218,33 @@ def fibo(bot, update, args):
 
 def chart(bot, update, args):
     """Send a chart image for a specific market pair and candle period."""
-    global market_data, notifier
+    global market_data, users_config
     
     chat_id = update.message.chat_id
+    user_id = 'usr_{}'.format(chat_id)
+    
+    _market_data = users_market_data[user_id]
+    _config = users_config[user_id]
+    _notifier = Notifier(_config.notifiers, _market_data)
+    _notifier.telegram_client.set_updater(updater)    
     
     logger.info('Processing command for chat_id %s' % str(chat_id))
 
     try:
-        # args[0] should contain the name of market
-        market_pair = ("%s/USDT" % args[0].strip()).upper()
+        exchange = args[0].strip().lower()
+        market_pair = args[1].strip().upper()
+        
+        if market_pair in market_data[exchange]: 
+            candle_period = args[2].strip().lower()
 
-        if market_pair in market_data['binance']: 
-            candle_period = args[1]
-
-            notifier.notify_telegram_chart(chat_id, 'binance', market_pair, candle_period)
+            _notifier.notify_telegram_chart(chat_id, exchange, market_pair, candle_period)
         else:
             update.message.reply_text('Market pair %s is not configured!' % market_pair)
 
     except (IndexError, ValueError) as err:
         logger.error('Error on chart() command... %s', err)
-        update.message.reply_text('Usage: /chart <market_pair> <candle_period>')
+        update.message.reply_text('Usage: /chart <exchange> <market_pair> <candle_period>')
+        update.message.reply_text('Usage: /chart binance xrp/usdt 4h')
 
 def exchanges(bot, update):
     """ Return a list with the configured exchanges"""
