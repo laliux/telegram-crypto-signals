@@ -23,6 +23,7 @@ from conf import Configuration
 from exchange import ExchangeInterface
 from notification import Notifier
 from behaviour import Behaviour
+from math import ceil
 
 import concurrent.futures
 import logs
@@ -43,11 +44,14 @@ new_results = dict()
 config = Configuration()
 settings = config.settings
 
-config_indicators = config.indicators
-
 # Set up logger
 logs.configure_logging(settings['log_level'], settings['log_mode'])
 logger = structlog.get_logger()
+
+update_interval = ceil(settings['update_interval'] / 60)
+logger.info('udate interval %d ', update_interval)
+
+config_indicators = config.indicators
 
 # Configure and run configured behaviour.
 exchange_interface = ExchangeInterface(config.exchanges)
@@ -499,7 +503,7 @@ def load_exchange(exchange):
         logger.info('%s', exc)
         return False
     
-@scheduler.scheduled_job('interval', minutes=2)
+@scheduler.scheduled_job('interval', minutes=update_interval)
 def load_exchanges():
     global market_data, new_results
         
