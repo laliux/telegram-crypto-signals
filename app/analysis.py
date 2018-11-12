@@ -11,6 +11,7 @@ from talib import abstract
 from analyzers.indicators import *
 from analyzers.informants import *
 from analyzers import *
+from analyzers.indicators.iiv import IIV
 
 class StrategyAnalyzer():
     """Contains all the methods required for analyzing strategies.
@@ -35,7 +36,8 @@ class StrategyAnalyzer():
             'momentum': momentum.Momentum().analyze,
             'mfi': mfi.MFI().analyze,
             'stoch_rsi': stoch_rsi.StochasticRSI().analyze,
-            'obv': obv.OBV().analyze
+            'obv': obv.OBV().analyze,
+            'iiv': iiv.IIV().analyze
         }
 
         return dispatcher
