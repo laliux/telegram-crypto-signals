@@ -406,18 +406,13 @@ class Behaviour(IndicatorUtils):
             for candle_period in historical_data:
                 candles_data = historical_data[candle_period]
                 self.logger.info('Creating chart for %s %s %s', exchange, market_pair, candle_period)
-                
-                if candle_period in obv:
-                    obv_df = obv[candle_period]
-                else:
-                    obv_df = None
-                    
+                                   
                 self._create_chart(exchange, market_pair, candle_period, candles_data, 
-                                   fibonacci_levels, obv_df, charts_dir)
+                                   fibonacci_levels, obv, charts_dir)
 
 
     def _create_chart(self, exchange, market_pair, candle_period, candles_data, 
-                      fibonacci_levels, obv_df, charts_dir):
+                      fibonacci_levels, obv, charts_dir):
 
         df = self.convert_to_dataframe(candles_data)
 
@@ -425,17 +420,19 @@ class Behaviour(IndicatorUtils):
         plt.rc('grid', color='#b0b0b0', linestyle='-', linewidth=0.2, alpha = 0.6)
 
         left, width = 0.1, 0.8
-        rect1 = [left, 0.6, width, 0.3]
-        rect2 = [left, 0.4, width, 0.2]
-        rect3 = [left, 0.1, width, 0.3]
-
+        rect1 = [left, 0.7, width, 0.25]
+        rect2 = [left, 0.5, width, 0.2]
+        rect3 = [left, 0.3, width, 0.2]
+        rect4 = [left, 0.1, width, 0.2]
+        
         fig = plt.figure(facecolor='white')
-        fig.set_size_inches(8, 12, forward=True)
+        fig.set_size_inches(10, 16, forward=True)
         axescolor = '#f6f6f6'  # the axes background color
 
         ax1 = fig.add_axes(rect1, facecolor=axescolor)  # left, bottom, width, height
         ax2 = fig.add_axes(rect2, facecolor=axescolor, sharex=ax1)
         ax3 = fig.add_axes(rect3, facecolor=axescolor, sharex=ax1)
+        ax4 = fig.add_axes(rect4, facecolor=axescolor, sharex=ax1)
 
         if fibonacci_levels['0.00'] > 0 and fibonacci_levels['0.00'] > fibonacci_levels['100.00']:
             ax1.axhline(fibonacci_levels['0.00'], color='steelblue', linestyle='-', alpha=0.3)
@@ -452,11 +449,16 @@ class Behaviour(IndicatorUtils):
         #Plot RSI (14)
         self.plot_rsi(ax2, df)
 
+        #Plot OBV indicator with data of last analysis
+        if candle_period in obv :
+            self.plot_obv(ax3, obv[candle_period], candle_period)
+            
         # Calculate and plot MACD       
-        self.plot_macd(ax3, df, candle_period)
+        self.plot_macd(ax4, df, candle_period)
+        
 
-        for ax in ax1, ax2, ax3:
-            if ax != ax3:
+        for ax in ax1, ax2, ax3, ax4:
+            if ax != ax4:
                 for label in ax.get_xticklabels():
                     label.set_visible(False)
             else:
@@ -640,6 +642,25 @@ class Behaviour(IndicatorUtils):
         ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=5, prune='upper'))
         ax.text(0.024, 0.94, 'MACD (12, 26, close, 9)', va='top', transform=ax.transAxes, fontsize=textsize)  
 
+    def plot_obv(self, ax, obv_df, candle_period):
+        textsize = 11
+
+        min_y = obv_df.obv.min()
+        max_y = obv_df.obv.max()
+
+        #Adding some extra space at bottom/top
+        min_y = min_y * 1.2
+        max_y = max_y * 1.2
+      
+        _time = mdates.date2num(obv_df.index.to_pydatetime())
+      
+        ax.plot(_time, obv_df.obv, color='blue', lw=0.6)
+        
+        ax.set_ylim((min_y, max_y))
+    
+        ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=5, prune='upper'))
+        ax.text(0.024, 0.94, 'OBV', va='top', transform=ax.transAxes, fontsize=textsize)
+        
     def relative_strength(self, prices, n=14):
         """
         compute the n period relative strength indicator
