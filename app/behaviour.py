@@ -388,9 +388,7 @@ class Behaviour(IndicatorUtils):
 
         for market_pair in market_data[exchange]:
             indicators = new_analysis[exchange][market_pair]['indicators']
-            
-            self.logger.info('Info for OBV indicator when creating charts..')
-            
+                        
             #OBV indicators
             obv = dict()
             for index, analysis in enumerate(indicators['obv']):

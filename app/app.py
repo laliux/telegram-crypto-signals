@@ -162,15 +162,19 @@ def alarm(bot, job):
     _notifier = Notifier(_config.notifiers, _market_data)
     _notifier.telegram_client.set_updater(updater)
     
+
+    #Getting custom results for each user
     _new_results = dict()
     
     for _exchange in _market_data:
-        if _exchange in users_exchanges[user_id] : #TODO: improve this.. update user market_data
-            _new_results[_exchange] = copy.deepcopy(new_results[_exchange])
+        if _exchange in users_exchanges[user_id] :
+            _new_results[_exchange] = dict()
+
+            for _market_pair in _market_data[_exchange]:
+                _new_results[_exchange][_market_pair] = copy.deepcopy(new_results[_exchange][_market_pair])
 
     _notifier.notify_telegram(_new_results, users_indicators[user_id])
-    
-    logger.info('Processing alarm() for user %s' % user_id)
+
     logger.info('Sending notifications of the exchanges %s' % str(list(_new_results.keys())))
 
 
