@@ -11,7 +11,6 @@ from talib import abstract
 from analyzers.indicators import *
 from analyzers.informants import *
 from analyzers import *
-from analyzers.indicators.iiv import IIV
 
 class StrategyAnalyzer():
     """Contains all the methods required for analyzing strategies.
@@ -55,7 +54,8 @@ class StrategyAnalyzer():
             'ema': ema.EMA().analyze,
             'vwap': vwap.VWAP().analyze,
             'bollinger_bands': bollinger_bands.Bollinger().analyze,
-            'ohlcv': ohlcv.OHLCV().analyze
+            'ohlcv': ohlcv.OHLCV().analyze,
+            'lrsi': lrsi.LRSI().analyze
         }
 
         return dispatcher

@@ -408,16 +408,21 @@ class Notifier():
 
         new_messages = dict()
         ohlcv_values = dict()
+        lrsi_values = dict()
 
         for exchange in new_analysis:
+            
             new_messages[exchange] = dict()
             ohlcv_values[exchange] = dict()
+            lrsi_values[exchange] = dict()
+
             for market in new_analysis[exchange]:
 
                 #market_pair = market.lower().split('/')[0]
                 market_pair = market.replace('/', '_').lower()
                 new_messages[exchange][market_pair] = dict()
                 ohlcv_values[exchange][market_pair] = dict()
+                lrsi_values[exchange][market_pair] = dict()
 
                 #Getting price values for each market pair and candle period
                 for indicator_type in new_analysis[exchange][market]:
@@ -427,6 +432,13 @@ class Notifier():
                             for signal in analysis['config']['signal']:
                                 values[signal] = analysis['result'].iloc[-1][signal]
                                 ohlcv_values[exchange][market_pair][analysis['config']['candle_period']] = values
+
+                        for index, analysis in enumerate(new_analysis[exchange][market]['informants']['lrsi']):
+                            values = dict()
+                            for signal in analysis['config']['signal']:
+                                values[signal] = analysis['result'].iloc[-1][signal]
+                            
+                            lrsi_values[exchange][market_pair][analysis['config']['candle_period']] = values                                
 
                 for indicator_type in new_analysis[exchange][market]:
                     if indicator_type == 'informants':
@@ -503,19 +515,27 @@ class Notifier():
                                     precision = self.market_data[exchange][market]['precision']
                                     decimal_format = '.{}f'.format(precision['price'])
 
-                                    prices = ''
                                     candle_period = analysis['config']['candle_period']
+
+                                    prices = ''
                                     candle_values = ohlcv_values[exchange][market_pair]
 
                                     if candle_period in candle_values :
                                         for key, value in candle_values[candle_period].items():
                                             value = format(value, decimal_format)
-                                            prices = '{} {}: {}' . format(prices, key.title(), value)                                   
+                                            prices = '{} {}: {}' . format(prices, key.title(), value)   
+
+                                    lrsi = ''
+                                    if candle_period in lrsi_values[exchange][market_pair]:
+                                        lrsi = lrsi_values[exchange][market_pair][candle_period]['lrsi']
+
+                                    self.logger.info('LRSI: %s for %s period: %s' % (str(lrsi), market_pair, candle_period))
 
                                     new_message = message_template.render(
                                         values=values, exchange=exchange, market=market, base_currency=base_currency,
                                         quote_currency=quote_currency, indicator=indicator, indicator_number=index,
-                                        analysis=analysis, status=status, last_status=last_status, prices=prices)
+                                        analysis=analysis, status=status, last_status=last_status, 
+                                        prices=prices, lrsi=lrsi)
 
                                     new_messages[exchange][market_pair][candle_period] = new_message 
 
