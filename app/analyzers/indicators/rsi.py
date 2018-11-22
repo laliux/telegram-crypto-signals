@@ -1,15 +1,14 @@
 """ RSI Indicator
 """
 
-import math
-
-import pandas
 from talib import abstract
 
 from analyzers.utils import IndicatorUtils
+from analyzers.informants.lrsi import LRSI
 
 
 class RSI(IndicatorUtils):
+    
     def analyze(self, historical_data, period_count=14,
                 signal=['rsi'], hot_thresh=None, cold_thresh=None):
         """Performs an RSI analysis on the historical data
@@ -29,13 +28,21 @@ class RSI(IndicatorUtils):
             pandas.DataFrame: A dataframe containing the indicators and hot/cold values.
         """
 
+        lrsi = LRSI()
+
         dataframe = self.convert_to_dataframe(historical_data)
+        
+        dataframe['lrsi'] = dataframe.close.apply(lambda x: lrsi.apply_filter(x, 0.4) )
+        
         rsi_values = abstract.RSI(dataframe, period_count).to_frame()
         rsi_values.dropna(how='all', inplace=True)
         rsi_values.rename(columns={rsi_values.columns[0]: 'rsi'}, inplace=True)
 
         if rsi_values[signal[0]].shape[0]:
-            rsi_values['is_hot'] = rsi_values[signal[0]] < hot_thresh
+            rsi_values['is_hot'] = rsi_values[signal[0]] < hot_thresh 
             rsi_values['is_cold'] = rsi_values[signal[0]] > cold_thresh
 
+            #idx = dataframe['lrsi'].apply(lambda x: x == 0)
+            #rsi_values.loc[ idx & (rsi_values['is_hot'] == True), 'is_hot' ] = False
+            
         return rsi_values

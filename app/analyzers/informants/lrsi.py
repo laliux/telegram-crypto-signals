@@ -22,7 +22,7 @@ from analyzers.utils import IndicatorUtils
 class LRSI(IndicatorUtils):
     l0, l1, l2, l3 = 0.0, 0.0, 0.0, 0.0
 
-    def lrsi(self, price, gamma):
+    def apply_filter(self, price, gamma):
         l0_1 = self.l0  
         l1_1 = self.l1
         l2_1 = self.l2
@@ -72,6 +72,6 @@ class LRSI(IndicatorUtils):
 
         dataframe = self.convert_to_dataframe(historical_data)
         
-        dataframe['lrsi'] = dataframe.close.apply(lambda x: self.lrsi(x, 0.4) )
+        dataframe['lrsi'] = dataframe.close.apply(lambda x: self.apply_filter(x, 0.4) )
 
         return dataframe
