@@ -64,7 +64,7 @@ else:
     logger.info("No configured markets, using all available on exchange.")
     market_data = exchange_interface.get_exchange_markets()
 
-notifier = Notifier(config.notifiers, market_data)
+#notifier = Notifier(config.notifiers, market_data)
 
 #Dict to save user defined fibonacci levels
 fibonacci = None
@@ -159,23 +159,24 @@ def alarm(bot, job):
     
     _market_data = users_market_data[user_id]
     _config = users_config[user_id]
-    _notifier = Notifier(_config.notifiers, _market_data)
+        
+    _notifier = Notifier(_config.notifiers, _market_data, _config.settings['enable_charts'])
     _notifier.telegram_client.set_updater(updater)
     
 
     #Getting custom results for each user
-    _new_results = dict()
+    messages = dict()
     
     for _exchange in _market_data:
         if _exchange in users_exchanges[user_id] :
-            _new_results[_exchange] = dict()
+            messages[_exchange] = dict()
 
             for _market_pair in _market_data[_exchange]:
-                _new_results[_exchange][_market_pair] = copy.deepcopy(new_results[_exchange][_market_pair])
+                if len(new_results[_exchange][_market_pair]) > 0:
+                    messages[_exchange][_market_pair] = copy.deepcopy(new_results[_exchange][_market_pair])
 
-    _notifier.notify_telegram(_new_results, users_indicators[user_id])
-
-    logger.info('Sending notifications of the exchanges %s' % str(list(_new_results.keys())))
+        if len(messages[_exchange]) > 0 :
+            _notifier.notify_telegram(messages, users_indicators[user_id])
 
 
 def fibo(bot, update, args):
@@ -506,13 +507,14 @@ def load_exchange(exchange):
     
         new_result = behaviour.run(exchange, single_market_data, fibonacci, config.settings['output_mode'])
         
-        new_results[exchange] = new_result
+        new_results[exchange] = new_result[exchange]
         
         return True
     except Exception as exc:
         logger.info('Exception while processing exchange: %s', exchange)
-        logger.info('%s', exc)
-        return False
+        #logger.info('%s', exc)
+        raise exc
+        #return False
     
 @scheduler.scheduled_job('interval', minutes=update_interval)
 def load_exchanges():
@@ -530,6 +532,7 @@ def load_exchanges():
 
             except Exception as exc:
                 logger.info('Exception processing exchanges: %s' % (exc))
+                raise exc
 
     
 def main():
