@@ -1,7 +1,6 @@
 """Handles sending notifications via the configured notifiers
 """
 
-import json
 import os
 import structlog
 
@@ -20,7 +19,7 @@ class Notifier():
     """Handles sending notifications via the configured notifiers
     """
 
-    def __init__(self, notifier_config, market_data): #, user_id):
+    def __init__(self, notifier_config, market_data, enable_charts): #, user_id):
         """Initializes Notifier class
 
         Args:
@@ -30,6 +29,7 @@ class Notifier():
         self.logger = structlog.get_logger()
         self.notifier_config = notifier_config
         self.market_data = market_data
+        self.enable_charts = enable_charts
         #self.user_id = user_id
         self.last_analysis = dict()
 
@@ -176,7 +176,7 @@ class Notifier():
                 self.gmail_client.notify(message)
 
 
-    def notify_telegram(self, new_analysis, user_indicators):
+    def notify_telegram(self, messages, user_indicators):
         """Send notifications via the telegram notifier
 
         Args:
@@ -185,17 +185,20 @@ class Notifier():
 
         if self.telegram_configured:
 
+            """
             messages = self._indicator_messages(
                 new_analysis,
                 self.notifier_config['telegram']['optional']['template'],
                 user_indicators
             )
+            """
 
             for exchange in messages:
                 for market_pair in messages[exchange]:
                     _messages = messages[exchange][market_pair]
-                    if len(_messages) == 0:
-                        continue
+                    #if len(_messages) == 0:
+                        #self.logger.info('No new messages for %s' % market_pair)
+                        #continue
 
                     for candle_period in _messages:
                         message = _messages[candle_period].strip()

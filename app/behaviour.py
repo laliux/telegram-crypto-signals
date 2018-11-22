@@ -8,6 +8,9 @@ import structlog
 import os
 
 import numpy as np
+
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.ticker as mticker
@@ -19,11 +22,13 @@ from matplotlib.patches import Rectangle
 from copy import deepcopy
 from ccxt import ExchangeError
 from tenacity import RetryError
+from jinja2 import Template
 
 from stockstats import StockDataFrame
 from analysis import StrategyAnalyzer
 from outputs import Output
 from analyzers.utils import IndicatorUtils
+from analyzers.indicators.obv import OBV
 
 class Behaviour(IndicatorUtils):
     """Default analyzer which gives users basic trading information.
@@ -42,9 +47,12 @@ class Behaviour(IndicatorUtils):
         self.indicator_conf = config.indicators
         self.informant_conf = config.informants
         self.crossover_conf = config.crossovers
+        self.notifiers_conf = config.notifiers
         self.exchange_interface = exchange_interface
         self.strategy_analyzer = StrategyAnalyzer()
+        
         self.all_historical_data = dict()
+        self.last_analysis = dict()
 
         output_interface = Output()
         self.output = output_interface.dispatcher
@@ -63,11 +71,17 @@ class Behaviour(IndicatorUtils):
 
         self.all_historical_data = self.get_all_historical_data(market_data)
 
-        new_result = self._test_strategies(market_data, output_mode)
+        new_analysis = self._test_strategies(market_data, output_mode)
         
-        self._create_charts(exchange, market_data, new_result, fibonacci)
+        template = self.notifiers_conf['telegram']['optional']['template']
+        
+        indicator_messages = self.get_indicator_messages(new_analysis, market_data, template)
+        
+        self._create_charts(exchange, indicator_messages, fibonacci)
 
-        return new_result[exchange]
+        #return new_result[exchange]
+        
+        return indicator_messages
 
     def get_all_historical_data(self, market_data):
         """Get historical data for each exchange/market pair/candle period
@@ -374,7 +388,7 @@ class Behaviour(IndicatorUtils):
             results = str()
         return results
 
-    def _create_charts(self, exchange, market_data, new_analysis, fibonacci):
+    def _create_charts(self, exchange, indicator_messages, fibonacci):
         """Create charts for each market_pair/candle_period
 
         Args:
@@ -385,32 +399,40 @@ class Behaviour(IndicatorUtils):
 
         if not os.path.exists(charts_dir):
             os.mkdir(charts_dir)
+            
+            #indicator_messages[exchange][market_pair][candle_period]
 
-        for market_pair in market_data[exchange]:
-            indicators = new_analysis[exchange][market_pair]['indicators']
+        for market_pair in indicator_messages[exchange]:
+            
+            candle_messages = indicator_messages[exchange][market_pair]
+            
+            if len(candle_messages) == 0:
+                continue
+                    
+            #indicators = new_analysis[exchange][market_pair]['indicators']
                         
             #OBV indicators
-            obv = dict()
-            for index, analysis in enumerate(indicators['obv']):
-                if analysis['result'].shape[0] == 0:
-                    continue
+            #obv = dict()
+            #for index, analysis in enumerate(indicators['obv']):
+                #if analysis['result'].shape[0] == 0:
+                    #continue
                 
-                obv[analysis['config']['candle_period']] = analysis['result']          
+                #obv[analysis['config']['candle_period']] = analysis['result']          
             
             historical_data = self.all_historical_data[exchange][market_pair]
 
             fibonacci_levels = fibonacci[exchange][market_pair]
 
-            for candle_period in historical_data:
+            for candle_period in candle_messages:
                 candles_data = historical_data[candle_period]
                 self.logger.info('Creating chart for %s %s %s', exchange, market_pair, candle_period)
                                    
                 self._create_chart(exchange, market_pair, candle_period, candles_data, 
-                                   fibonacci_levels, obv, charts_dir)
+                                   fibonacci_levels, charts_dir)
 
 
     def _create_chart(self, exchange, market_pair, candle_period, candles_data, 
-                      fibonacci_levels, obv, charts_dir):
+                      fibonacci_levels, charts_dir):
 
         df = self.convert_to_dataframe(candles_data)
 
@@ -448,8 +470,8 @@ class Behaviour(IndicatorUtils):
         self.plot_rsi(ax2, df)
 
         #Plot OBV indicator with data of last analysis
-        if candle_period in obv :
-            self.plot_obv(ax3, obv[candle_period], candle_period)
+        #if candle_period in obv :
+        self.plot_obv(ax3, candles_data, candle_period)
             
         # Calculate and plot MACD       
         self.plot_macd(ax4, df, candle_period)
@@ -640,7 +662,10 @@ class Behaviour(IndicatorUtils):
         ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=5, prune='upper'))
         ax.text(0.024, 0.94, 'MACD (12, 26, close, 9)', va='top', transform=ax.transAxes, fontsize=textsize)  
 
-    def plot_obv(self, ax, obv_df, candle_period):
+    def plot_obv(self, ax, candles_data, candle_period):
+        
+        obv_df = OBV().analyze(candles_data)
+        
         textsize = 11
 
         min_y = obv_df.obv.min()
@@ -711,3 +736,152 @@ class Behaviour(IndicatorUtils):
         a = np.convolve(x, weights, mode='full')[:len(x)]
         a[:n] = a[n]
         return a
+
+    def get_indicator_messages(self, new_analysis, market_data, template):
+        """Creates a message list from a user defined template
+
+        Args:
+            new_analysis (dict): A dictionary of data related to the analysis to send a message about.
+            template (str): A Jinja formatted message template.
+
+        Returns:
+            list: A list with the templated messages for the notifier.
+        """
+
+        if not self.last_analysis:
+            self.last_analysis = new_analysis
+
+        message_template = Template(template)
+
+        new_messages = dict()
+        ohlcv_values = dict()
+        lrsi_values = dict()
+
+        for exchange in new_analysis:
+            
+            new_messages[exchange] = dict()
+            ohlcv_values[exchange] = dict()
+            lrsi_values[exchange] = dict()
+
+            for market_pair in new_analysis[exchange]:
+
+                new_messages[exchange][market_pair] = dict()
+                ohlcv_values[exchange][market_pair] = dict()
+                lrsi_values[exchange][market_pair] = dict()
+
+                #Getting price values for each market pair and candle period
+                for indicator_type in new_analysis[exchange][market_pair]:
+                    if indicator_type == 'informants':
+                        for index, analysis in enumerate(new_analysis[exchange][market_pair]['informants']['ohlcv']):
+                            values = dict()
+                            for signal in analysis['config']['signal']:
+                                values[signal] = analysis['result'].iloc[-1][signal]
+                                ohlcv_values[exchange][market_pair][analysis['config']['candle_period']] = values
+
+                        for index, analysis in enumerate(new_analysis[exchange][market_pair]['informants']['lrsi']):
+                            values = dict()
+                            for signal in analysis['config']['signal']:
+                                values[signal] = analysis['result'].iloc[-1][signal]
+                            
+                            lrsi_values[exchange][market_pair][analysis['config']['candle_period']] = values                                
+
+                for indicator_type in new_analysis[exchange][market_pair]:
+                    if indicator_type == 'informants':
+                        continue
+
+                    for indicator in new_analysis[exchange][market_pair][indicator_type]:
+                        for index, analysis in enumerate(new_analysis[exchange][market_pair][indicator_type][indicator]):
+                            if analysis['result'].shape[0] == 0:
+                                continue
+
+                            values = dict()
+
+                            if indicator_type == 'indicators':
+                                candle_period = analysis['config']['candle_period']
+                                
+                                #Check for any user config
+                                #if candle_period not in user_indicators[indicator]:
+                                    #self.logger.info('###Skipping %s %s ' % (indicator, candle_period))
+                                    #continue
+                                
+                                for signal in analysis['config']['signal']:
+                                    latest_result = analysis['result'].iloc[-1]
+
+                                    values[signal] = analysis['result'].iloc[-1][signal]
+                                    if isinstance(values[signal], float):
+                                        values[signal] = format(values[signal], '.2f')
+                            elif indicator_type == 'crossovers':
+                                latest_result = analysis['result'].iloc[-1]
+
+                                key_signal = '{}_{}'.format(
+                                    analysis['config']['key_signal'],
+                                    analysis['config']['key_indicator_index']
+                                )
+
+                                crossed_signal = '{}_{}'.format(
+                                    analysis['config']['crossed_signal'],
+                                    analysis['config']['crossed_indicator_index']
+                                )
+
+                                values[key_signal] = analysis['result'].iloc[-1][key_signal]
+                                if isinstance(values[key_signal], float):
+                                        values[key_signal] = format(values[key_signal], '.2f')
+
+                                values[crossed_signal] = analysis['result'].iloc[-1][crossed_signal]
+                                if isinstance(values[crossed_signal], float):
+                                        values[crossed_signal] = format(values[crossed_signal], '.2f')
+
+                            status = 'neutral'
+                            if latest_result['is_hot']:
+                                status = 'hot'
+                            elif latest_result['is_cold']:
+                                status = 'cold'
+
+                            # Save status of indicator's new analysis
+                            new_analysis[exchange][market_pair][indicator_type][indicator][index]['status'] = status
+
+                            if latest_result['is_hot'] or latest_result['is_cold']:
+                                try:
+                                    last_status = self.last_analysis[exchange][market_pair][indicator_type][indicator][index]['status']
+                                except:
+                                    last_status = str()
+
+                                should_alert = True
+
+                                if analysis['config']['alert_frequency'] == 'once':
+                                    if last_status == status:
+                                        should_alert = False
+
+                                if not analysis['config']['alert_enabled']:
+                                    should_alert = False
+
+                                if should_alert:
+                                    base_currency, quote_currency = market_pair.split('/')
+                                    precision = market_data[exchange][market_pair]['precision']
+                                    decimal_format = '.{}f'.format(precision['price'])
+
+                                    candle_period = analysis['config']['candle_period']
+
+                                    prices = ''
+                                    candle_values = ohlcv_values[exchange][market_pair]
+
+                                    if candle_period in candle_values :
+                                        for key, value in candle_values[candle_period].items():
+                                            value = format(value, decimal_format)
+                                            prices = '{} {}: {}' . format(prices, key.title(), value)   
+
+                                    lrsi = ''
+                                    if candle_period in lrsi_values[exchange][market_pair]:
+                                        lrsi = lrsi_values[exchange][market_pair][candle_period]['lrsi']
+
+                                    new_message = message_template.render(
+                                        values=values, exchange=exchange, market=market_pair, base_currency=base_currency,
+                                        quote_currency=quote_currency, indicator=indicator, indicator_number=index,
+                                        analysis=analysis, status=status, last_status=last_status, 
+                                        prices=prices, lrsi=lrsi)
+
+                                    new_messages[exchange][market_pair][candle_period] = new_message 
+
+        # Merge changes from new analysis into last analysis
+        self.last_analysis = {**self.last_analysis, **new_analysis}
+        return new_messages
