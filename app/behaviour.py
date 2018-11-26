@@ -798,10 +798,11 @@ class Behaviour(IndicatorUtils):
                                 continue
 
                             values = dict()
-
-                            if indicator_type == 'indicators':
+                            if 'candle_period' in analysis['config']:
                                 candle_period = analysis['config']['candle_period']
-                                
+                                new_messages[exchange][market_pair][candle_period] = list()
+
+                            if indicator_type == 'indicators':                                
                                 #Check for any user config
                                 #if candle_period not in user_indicators[indicator]:
                                     #self.logger.info('###Skipping %s %s ' % (indicator, candle_period))
@@ -883,7 +884,8 @@ class Behaviour(IndicatorUtils):
                                         analysis=analysis, status=status, last_status=last_status, 
                                         prices=prices, lrsi=lrsi)
 
-                                    new_messages[exchange][market_pair][candle_period] = new_message 
+                                    #new_messages[exchange][market_pair][candle_period] = new_message 
+                                    new_messages[exchange][market_pair][candle_period].append(new_message)
 
         # Merge changes from new analysis into last analysis
         self.last_analysis = {**self.last_analysis, **new_analysis}

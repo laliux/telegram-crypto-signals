@@ -185,14 +185,6 @@ class Notifier():
 
         if self.telegram_configured:
 
-            """
-            messages = self._indicator_messages(
-                new_analysis,
-                self.notifier_config['telegram']['optional']['template'],
-                user_indicators
-            )
-            """
-
             for exchange in messages:
                 for market_pair in messages[exchange]:
                     _messages = messages[exchange][market_pair]
@@ -201,19 +193,21 @@ class Notifier():
                         #continue
 
                     for candle_period in _messages:
-                        message = _messages[candle_period].strip()
+                        if not isinstance(_messages[candle_period], list) or len (_messages[candle_period]) == 0:
+                            continue
 
                         market_pair = market_pair.replace('/', '_').lower()
                         chart_file = './charts/{}_{}_{}.png'.format(exchange, market_pair, candle_period)
 
                         if os.path.exists(chart_file):
                             try:
+                                message = '{} {}'.format(market_pair, candle_period)
                                 self.telegram_client.send_chart(open(chart_file, 'rb'), message)
                             except (IOError, SyntaxError) :
-                                self.notify_telegram_message(message)
-                        else:
-                            self.logger.info('Chart file %s doesnt exist, sending text message.', chart_file)
-                            self.notify_telegram_message(message)
+                                self.logger.info('Error sending chart file %s', chart_file)
+
+                        for message in _messages[candle_period]:
+                            self.notify_telegram_message(message.strip(), None)
                         
 
     def notify_telegram_message(self, message, chat_id):
