@@ -78,8 +78,6 @@ class Behaviour(IndicatorUtils):
         indicator_messages = self.get_indicator_messages(new_analysis, market_data, template)
         
         self._create_charts(exchange, indicator_messages, fibonacci)
-
-        #return new_result[exchange]
         
         return indicator_messages
 
@@ -402,16 +400,11 @@ class Behaviour(IndicatorUtils):
 
         if not os.path.exists(charts_dir):
             os.mkdir(charts_dir)
-            
-            #indicator_messages[exchange][market_pair][candle_period]
 
         for market_pair in indicator_messages[exchange]:
             
             candle_messages = indicator_messages[exchange][market_pair]
-            
-            if len(candle_messages) == 0:
-                continue
-                    
+                               
             #indicators = new_analysis[exchange][market_pair]['indicators']
                         
             #OBV indicators
@@ -427,6 +420,9 @@ class Behaviour(IndicatorUtils):
             fibonacci_levels = fibonacci[exchange][market_pair]
 
             for candle_period in candle_messages:
+                if len(candle_messages[candle_period]) == 0:
+                    continue
+
                 candles_data = historical_data[candle_period]
                 self.logger.info('Creating chart for %s %s %s', exchange, market_pair, candle_period)
                                    
@@ -884,7 +880,6 @@ class Behaviour(IndicatorUtils):
                                         analysis=analysis, status=status, last_status=last_status, 
                                         prices=prices, lrsi=lrsi)
 
-                                    #new_messages[exchange][market_pair][candle_period] = new_message 
                                     new_messages[exchange][market_pair][candle_period].append(new_message)
 
         # Merge changes from new analysis into last analysis
